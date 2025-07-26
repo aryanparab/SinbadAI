@@ -107,7 +107,7 @@ NEXTAUTH_SECRET=<same_as_in_root_env>
 
 ## 📸 Demo
 
-*(Add GIF or screenshot here if available)*
+(https://drive.google.com/file/d/1eMJqtoheiwn8LkqDPpkzBP83zBTLTw1T/view?usp=sharing)
 
 ---
 
