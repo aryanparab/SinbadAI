@@ -1,0 +1,27 @@
+# Node.js
+frontend/node_modules/
+frontend/.env.local
+frontend/dist/
+frontend/build/
+frontend/.next/
+frontend/out/
+frontend/coverage/
+frontend/.vscode/
+frontend/.DS_Store
+
+# Python
+
+backend/__pycache__/
+backend/*.py[cod]
+backend/*.egg-info/
+backend/*.log
+backend/*.sqlite3
+backend/.env
+backend/.venv/
+backend/venv/
+backend/migrations/
+backend/instance/
+
+
+flyers/*
+.env

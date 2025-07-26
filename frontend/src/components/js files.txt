@@ -1,0 +1,1880 @@
+'use client';
+import React, { useState, useEffect } from 'react';
+import { Eye, Users, MapPin, Package, Target, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpLeft, ArrowDownLeft, ArrowDownRight, Zap, Heart, Sword, Shield, Search, BookOpen, Link, AlertTriangle, Clock, Star, FlaskConical, Droplets, Syringe, TreePine, Fuel, Hammer, Landmark, ScrollText } from 'lucide-react';
+import { useGameLogic } from "@/hooks/useGameLogic";
+import { jungleTheme, getInteractionColors, getNodeColor } from '@/themes/themes';
+
+const GameScreenUI = () => {
+  const { scene, loading, gameProgress, initialized, handleChoice } = useGameLogic();
+  const [activeView, setActiveView] = useState('compass');
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [hoveredChoice, setHoveredChoice] = useState(null);
+  const [currentTheme, setCurrentTheme] = useState('jungle'); // Theme controller
+
+  // Get current theme object
+  const theme = jungleTheme; // You can expand this to support multiple themes
+
+  // Convert scene options to compass choices with directions
+  const convertToCompassChoices = (options) => {
+    if (!options || options.length === 0) return [];
+    
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const typeMapping = {
+      'talk': 'communication',
+      'examine': 'knowledge',
+      'use': 'exploration',
+      'attack': 'danger',
+      'hide': 'stealth',
+      'search': 'knowledge',
+      'help': 'communication',
+      'take': 'exploration',
+      'read': 'knowledge',
+      'investigate': 'knowledge',
+      'craft': 'crafting',
+      'build': 'crafting',
+      'gather': 'resource',
+      'hunt': 'resource',
+      'rest': 'survival',
+      'sleep': 'survival'
+    };
+
+    return options.map((option, index) => {
+      const direction = directions[index % directions.length];
+      const lowerOption = option.toLowerCase();
+      
+      // Determine type based on keywords in option text
+      let type = 'exploration';
+      for (const [keyword, optionType] of Object.entries(typeMapping)) {
+        if (lowerOption.includes(keyword)) {
+          type = optionType;
+          break;
+        }
+      }
+      
+      // Determine icon based on type
+      const iconMap = {
+        danger: AlertTriangle,
+        knowledge: BookOpen,
+        exploration: Search,
+        communication: Users,
+        stealth: Shield,
+        crafting: Hammer,
+        resource: FlaskConical,
+        survival: Heart
+      };
+
+      return {
+        id: `choice-${index}`,
+        direction,
+        text: option,
+        type,
+        icon: iconMap[type] || Search,
+        consequences: [type, 'action']
+      };
+    });
+  };
+
+  // Generate lore nodes from game state
+  const generateLoreNodes = () => {
+    if (!scene) return [];
+    
+    const nodes = [];
+    const baseX = 150;
+    const baseY = 100;
+    const spacing = 80;
+
+    // Add characters as nodes
+    scene.characters?.forEach((character, index) => {
+      nodes.push({
+        id: `char-${character.id}`,
+        type: 'character',
+        name: character.name,
+        x: baseX + (index * spacing),
+        y: baseY,
+        connections: [],
+        data: character
+      });
+    });
+
+    // Add inventory items as nodes
+    scene.current_inventory?.forEach((item, index) => {
+      nodes.push({
+        id: `item-${item.name}`,
+        type: 'item',
+        name: item.name,
+        x: baseX + (index * spacing),
+        y: baseY + spacing,
+        connections: [],
+        data: item
+      });
+    });
+
+    // Add discovered secrets as nodes
+    scene.new_secrets?.forEach((secret, index) => {
+      nodes.push({
+        id: `secret-${index}`,
+        type: 'secret',
+        name: secret.substring(0, 20) + '...',
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 2,
+        connections: [],
+        data: { description: secret }
+      });
+    });
+
+    // Add objectives as nodes
+    scene.game_state?.active_objectives?.forEach((objective, index) => {
+      nodes.push({
+        id: `obj-${objective.id}`,
+        type: 'objective',
+        name: objective.description.substring(0, 20) + '...',
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 3,
+        connections: objective.involves_npcs?.map(npc => `char-${npc}`) || [],
+        data: objective
+      });
+    });
+
+    // Add threats as nodes
+    scene.threat_updates?.forEach((threat, index) => {
+      nodes.push({
+        id: `threat-${threat.threat_id}`,
+        type: 'threat',
+        name: threat.threat_name,
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 4,
+        connections: threat.affects_npcs?.map(npc => `char-${npc}`) || [],
+        data: threat
+      });
+    });
+
+    // Add current location as a node
+    if (scene.location) {
+      nodes.push({
+        id: 'location-current',
+        type: 'location',
+        name: scene.location,
+        x: baseX + spacing * 2,
+        y: baseY - spacing,
+        connections: nodes.filter(n => n.type === 'character').map(n => n.id),
+        data: { name: scene.location, details: scene.location_details }
+      });
+    }
+
+    // Add discovered lore as nodes
+    scene.discovered_lore?.forEach((lore, index) => {
+      nodes.push({
+        id: `lore-${lore.id}`,
+        type: 'lore',
+        name: lore.title,
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 5,
+        connections: [],
+        data: lore
+      });
+    });
+
+    return nodes;
+  };
+
+  const compassChoices = convertToCompassChoices(scene?.options || []);
+  const loreNodes = generateLoreNodes();
+
+  if (!initialized) {
+    return (
+      <div 
+        className="min-h-screen text-white flex items-center justify-center"
+        style={{ 
+          background: theme.backgrounds.main.replace('background: ', ''),
+          fontFamily: theme.fonts.primary
+        }}
+      >
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 mx-auto mb-4" 
+               style={{ borderColor: theme.colors.primary.emerald }}></div>
+          <p style={{ color: theme.colors.ui.textSecondary }}>Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const getDirectionIcon = (direction) => {
+    const icons = {
+      N: ArrowUp, S: ArrowDown, E: ArrowRight, W: ArrowLeft,
+      NE: ArrowUpRight, NW: ArrowUpLeft, SE: ArrowDownRight, SW: ArrowDownLeft
+    };
+    return icons[direction] || ArrowUp;
+  };
+
+  const getResourceColor = (level) => {
+    switch (level) {
+      case 'abundant': return theme.colors.primary.emerald;
+      case 'moderate': return theme.colors.secondary.bamboo;
+      case 'scarce': return theme.colors.danger.fire;
+      case 'critical': return theme.colors.danger.poison;
+      default: return theme.colors.ui.textMuted;
+    }
+  };
+
+  const CompassChoice = ({ choice, index, total }) => {
+    const angle = (index * 360) / total;
+    const radius = 140;
+    const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
+    const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+    
+    const Icon = choice.icon;
+    const DirectionIcon = getDirectionIcon(choice.direction);
+    const interactionColors = getInteractionColors(choice.type);
+    
+    return (
+      <div
+        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-300 ${
+          hoveredChoice === choice.id ? 'scale-110 z-10' : 'scale-100'
+        }`}
+        style={{ left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)` }}
+        onMouseEnter={() => setHoveredChoice(choice.id)}
+        onMouseLeave={() => setHoveredChoice(null)}
+        onClick={() => handleChoice(choice.text, 'narrative_choice', undefined, undefined, index)}
+      >
+        <div 
+          className="relative p-4 rounded-lg border-2 backdrop-blur-sm min-w-[200px] max-w-[250px]"
+          style={{ 
+            background: theme.components.compassChoice.base.match(/background: ([^;]+)/)?.[1] || interactionColors.bg,
+            borderColor: interactionColors.border,
+            color: interactionColors.text,
+            fontFamily: theme.fonts.secondary,
+            ...(hoveredChoice === choice.id && {
+              transform: 'scale(1.05) translateY(-2px)',
+              boxShadow: `0 12px 40px rgba(0, 0, 0, 0.4), 0 0 20px ${interactionColors.border}40`
+            })
+          }}
+        >
+          <div className="flex items-center gap-2 mb-2">
+            <DirectionIcon className="w-4 h-4" />
+            <span className="text-xs font-bold" style={{ fontFamily: theme.fonts.ui }}>{choice.direction}</span>
+            <Icon className="w-4 h-4 ml-auto" />
+          </div>
+          <p className="text-sm font-medium mb-2">{choice.text}</p>
+          <div className="flex gap-1 flex-wrap">
+            {choice.consequences.map((consequence, idx) => (
+              <span 
+                key={idx} 
+                className="text-xs px-2 py-1 rounded"
+                style={{ 
+                  backgroundColor: 'rgba(0, 0, 0, 0.2)',
+                  fontFamily: theme.fonts.ui 
+                }}
+              >
+                {consequence}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const LoreNode = ({ node }) => {
+    const Icon = getNodeIcon(node.type);
+    const nodeColor = getNodeColor(node.type);
+    
+    const handleNodeClick = () => {
+      setSelectedNode(selectedNode === node.id ? null : node.id);
+      
+      // Handle interactions based on node type
+      if (node.type === 'character' && node.data?.interactable) {
+        handleChoice(`Talk to ${node.data.name}`, 'character_interaction', node.data.id, 'npc');
+      } else if (node.type === 'item') {
+        handleChoice(`Examine ${node.data.name}`, 'item_interaction', node.data.name, 'inventory_item');
+      } else if (node.type === 'location') {
+        handleChoice(`Explore ${node.data.name}`, 'location_interaction', node.data.name, 'location');
+      } else if (node.type === 'objective') {
+        handleChoice(`Focus on ${node.data.description}`, 'quest_interaction', node.data.id, 'objective');
+      }
+    };
+    
+    return (
+      <div
+        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-300 ${
+          selectedNode === node.id ? 'scale-110 z-20' : 'scale-100'
+        }`}
+        style={{ left: node.x, top: node.y }}
+        onClick={handleNodeClick}
+      >
+        <div 
+          className="w-12 h-12 rounded-full flex items-center justify-center shadow-lg border-2"
+          style={{ 
+            backgroundColor: nodeColor,
+            borderColor: 'rgba(255, 255, 255, 0.2)',
+            boxShadow: selectedNode === node.id ? `0 8px 24px rgba(0, 0, 0, 0.4), 0 0 16px ${nodeColor}80` : theme.shadows.medium
+          }}
+        >
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+        <div 
+          className="absolute top-14 left-1/2 transform -translate-x-1/2 text-xs px-2 py-1 rounded whitespace-nowrap"
+          style={{ 
+            color: theme.colors.ui.text,
+            backgroundColor: 'rgba(0, 0, 0, 0.5)',
+            fontFamily: theme.fonts.ui
+          }}
+        >
+          {node.name}
+        </div>
+      </div>
+    );
+  };
+
+  const getNodeIcon = (type) => {
+    const icons = {
+      character: Users,
+      secret: Eye,
+      item: Package,
+      location: MapPin,
+      threat: Zap,
+      objective: Target,
+      lore: BookOpen
+    };
+    return icons[type] || Package;
+  };
+
+  const LoreConnections = ({ nodes }) => {
+    return (
+      <svg className="absolute inset-0 pointer-events-none">
+        {nodes.map(node => 
+          node.connections.map(connectionId => {
+            const connectedNode = nodes.find(n => n.id === connectionId);
+            if (!connectedNode) return null;
+            
+            return (
+              <line
+                key={`${node.id}-${connectionId}`}
+                x1={node.x}
+                y1={node.y}
+                x2={connectedNode.x}
+                y2={connectedNode.y}
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+              />
+            );
+          })
+        )}
+      </svg>
+    );
+  };
+
+  return (
+    <div 
+      className="min-h-screen text-white relative overflow-hidden"
+      style={{ 
+        background: theme.backgrounds.main.replace('background: ', ''),
+        fontFamily: theme.fonts.primary
+      }}
+    >
+      {/* Atmospheric Background */}
+      <div 
+        className="absolute inset-0"
+        style={{ background: theme.backgrounds.overlay.replace('background: ', '') }}
+      />
+      
+      {/* Header */}
+      <div className="relative z-10 p-6">
+        <div className="max-w-4xl mx-auto">
+          <h1 
+            className="text-3xl font-bold mb-2 text-center"
+            style={{ 
+              ...theme.typography.title,
+              fontSize: '2.5rem',
+              background: theme.typography.title.background,
+              backgroundClip: 'text',
+              WebkitBackgroundClip: 'text',
+              WebkitTextFillColor: 'transparent'
+            }}
+          >
+            {scene?.world} - {scene?.location}
+          </h1>
+          <div 
+            className="flex justify-center items-center gap-6 text-sm mb-4 flex-wrap"
+            style={{ 
+              color: theme.colors.ui.textSecondary,
+              fontFamily: theme.fonts.ui
+            }}
+          >
+            <span>Scenes: {gameProgress.scenes_completed}</span>
+            <span>Time: {Math.floor(gameProgress.play_time_minutes / 60)}h {gameProgress.play_time_minutes % 60}m</span>
+            <span>Tension: {gameProgress.tension_level}/10</span>
+            <span>Mood: {scene?.mood_atmosphere}</span>
+            {scene?.location_details?.safety_level && (
+              <span className="flex items-center gap-1">
+                Safety: {scene.location_details.safety_level}/10 
+                <Shield className="w-3 h-3" style={{ color: theme.colors.primary.emerald }} />
+              </span>
+            )}
+          </div>
+          
+          {/* View Toggle */}
+          <div className="flex justify-center mb-6">
+            <div 
+              className="rounded-lg p-1 flex"
+              style={{ backgroundColor: theme.colors.ui.overlay }}
+            >
+              {['compass', 'lore', 'hybrid'].map((view) => (
+                <button
+                  key={view}
+                  onClick={() => setActiveView(view)}
+                  className="px-4 py-2 rounded-md transition-all capitalize"
+                  style={{
+                    backgroundColor: activeView === view ? theme.colors.primary.jungleGreen : 'transparent',
+                    color: activeView === view ? theme.colors.ui.text : theme.colors.ui.textMuted,
+                    fontFamily: theme.fonts.ui
+                  }}
+                >
+                  {view === 'compass' ? 'Narrative Compass' : 
+                   view === 'lore' ? 'Lore Map' : 'Hybrid View'}
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="fixed inset-0 flex items-center justify-center z-50" style={{ backgroundColor: theme.colors.ui.overlay }}>
+          <div className="text-center">
+            <div 
+              className="animate-spin rounded-full h-8 w-8 border-b-2 mx-auto mb-4"
+              style={{ borderColor: theme.colors.primary.emerald }}
+            ></div>
+            <p style={{ color: theme.colors.ui.textSecondary }}>Loading next scene...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Narration */}
+      {scene && (
+        <div className="relative z-10 px-6 mb-8">
+          <div className="max-w-4xl mx-auto">
+            <div 
+              className="backdrop-blur-sm rounded-lg p-6 border"
+              style={{ 
+                background: theme.backgrounds.panel.match(/background: ([^;]+)/)?.[1],
+                borderColor: theme.colors.ui.border,
+                fontFamily: theme.fonts.secondary
+              }}
+            >
+              <p 
+                className="leading-relaxed"
+                style={{ 
+                  color: theme.colors.ui.text,
+                  fontSize: theme.typography.narrative.fontSize,
+                  lineHeight: theme.typography.narrative.lineHeight
+                }}
+              >
+                {scene.narration_text}
+              </p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialogue Section */}
+      {scene?.dialogue && scene.dialogue.length > 0 && (
+        <div className="relative z-10 px-6 mb-6">
+          <div className="max-w-4xl mx-auto">
+            <div 
+              className="backdrop-blur-sm rounded-lg p-4 border"
+              style={{ 
+                background: theme.components.dialoguePanel.base.match(/background: ([^;]+)/)?.[1],
+                borderColor: theme.colors.secondary.bamboo,
+                borderLeft: `4px solid ${theme.colors.secondary.bamboo}`
+              }}
+            >
+              <h3 
+                className="font-semibold mb-3 flex items-center gap-2"
+                style={{ color: theme.colors.secondary.bamboo }}
+              >
+                Dialogue:
+              </h3>
+              <div className="space-y-2">
+                {scene.dialogue.map((line, idx) => (
+                  <div key={idx} className="border-l-4 pl-3" style={{ borderColor: theme.colors.secondary.bamboo }}>
+                    <div className="flex items-center gap-2">
+                      <strong style={{ color: theme.colors.secondary.bamboo }}>{line.speaker}:</strong>
+                      {line.emotion && (
+                        <span 
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ backgroundColor: 'rgba(218, 165, 32, 0.2)' }}
+                        >
+                          {line.emotion}
+                        </span>
+                      )}
+                      {line.is_internal_thought && (
+                        <span 
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ backgroundColor: 'rgba(107, 114, 128, 0.2)' }}
+                        >
+                          Internal Thought
+                        </span>
+                      )}
+                    </div>
+                    <p style={{ color: theme.colors.ui.textSecondary }}>{line.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Interactive Area */}
+      <div className="relative z-10 px-6 flex-1 pb-10">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Panel: Interactive Elements */}
+          <div className="lg:col-span-1 space-y-6">
+            {scene?.interactive_elements && scene.interactive_elements.length > 0 && (
+              <div 
+                className="backdrop-blur-sm rounded-lg p-4 border"
+                style={{ 
+                  background: theme.backgrounds.panel.match(/background: ([^;]+)/)?.[1],
+                  borderColor: theme.colors.ui.border
+                }}
+              >
+                <h3 
+                  className="font-semibold mb-3 flex items-center gap-2"
+                  style={{ color: theme.colors.primary.emerald }}
+                >
+                  <Link className="w-4 h-4" />
+                  Interactive Elements
+                </h3>
+                <div className="space-y-2">
+                  {scene.interactive_elements.map((element, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-2 rounded cursor-pointer transition-colors"
+                      style={{ 
+                        backgroundColor: 'rgba(74, 222, 128, 0.1)',
+                        fontFamily: theme.fonts.ui
+                      }}
+                      onClick={() => handleChoice(`Interact with ${element.name}`, 'environmental_interaction', element.id, 'interactive_element')}
+                    >
+                      <p className="text-sm font-bold" style={{ color: theme.colors.ui.text }}>{element.name}</p>
+                      <p className="text-xs" style={{ color: theme.colors.ui.textMuted }}>{element.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {element.interaction_types.map((type, tIdx) => (
+                          <span 
+                            key={tIdx} 
+                            className="text-xs px-2 py-0.5 rounded"
+                            style={{ 
+                              backgroundColor: 'rgba(29, 78, 216, 0.3)',
+                              color: theme.colors.primary.emerald
+                            }}
+                          >
+                            {type}
+                          </span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Center Panel: Compass/Lore View */}
+          <div className="lg:col-span-2">
+            {/* Compass View */}
+            {activeView === 'compass' && (
+              <div 
+                className="relative h-96 rounded-xl border backdrop-blur-sm"
+                style={{ 
+                  background: theme.backgrounds.compass.match(/background: ([^;]+)/)?.[1],
+                  borderColor: theme.colors.ui.border
+                }}
+              >
+                {/* Center Hub */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                  <div 
+                    className="w-16 h-16 rounded-full flex items-center justify-center shadow-2xl"
+                    style={{ 
+                      background: `linear-gradient(135deg, ${theme.colors.primary.emerald} 0%, ${theme.colors.primary.jungleGreen} 100%)`
+                    }}
+                  >
+                    <Target className="w-8 h-8 text-white" />
+                  </div>
+                  <div 
+                    className="absolute top-20 left-1/2 transform -translate-x-1/2 text-xs text-center"
+                    style={{ color: theme.colors.ui.textMuted }}
+                  >
+                    Choose your path
+                  </div>
+                </div>
+
+                {/* Compass Choices */}
+                {compassChoices.map((choice, index) => (
+                  <CompassChoice
+                    key={choice.id}
+                    choice={choice}
+                    index={index}
+                    total={compassChoices.length}
+                  />
+                ))}
+
+                {/* Direction indicators */}
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-xs" style={{ color: theme.colors.ui.textMuted }}>N</div>
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-xs" style={{ color: theme.colors.ui.textMuted }}>S</div>
+                <div className="absolute top-1/2 left-4 transform -translate-y-1/2 text-xs" style={{ color: theme.colors.ui.textMuted }}>W</div>
+                <div className="absolute top-1/2 right-4 transform -translate-y-1/2 text-xs" style={{ color: theme.colors.ui.textMuted }}>E</div>
+              </div>
+            )}
+
+            {/* Lore Map View */}
+            {activeView === 'lore' && (
+              <div 
+                className="relative h-96 rounded-xl border backdrop-blur-sm"
+                style={{ 
+                  background: theme.backgrounds.compass.match(/background: ([^;]+)/)?.[1],
+                  borderColor: theme.colors.ui.border
+                }}
+              >
+                <LoreConnections nodes={loreNodes} />
+                
+                {loreNodes.map(node => (
+                  <LoreNode key={node.id} node={node} />
+                ))}
+
+                {/* Legend */}
+                <div 
+                  className="absolute top-4 right-4 p-3 rounded-lg text-xs"
+                  style={{ 
+                    backgroundColor: 'rgba(0, 0, 0, 0.5)',
+                    fontFamily: theme.fonts.ui
+                  }}
+                >
+                  {Object.entries(theme.colors.nodes).map(([type, color]) => (
+                    <div key={type} className="flex items-center gap-2 mb-1">
+                      <div 
+                        className="w-3 h-3 rounded-full"
+                        style={{ backgroundColor: color }}
+                      ></div>
+                      <span style={{ color: theme.colors.ui.text }} className="capitalize">{type}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Hybrid View */}
+            {activeView === 'hybrid' && (
+              <div className="grid grid-cols-2 gap-6 h-96">
+                {/* Left: Lore Map */}
+                <div 
+                  className="relative rounded-xl border backdrop-blur-sm"
+                  style={{ 
+                    background: theme.backgrounds.compass.match(/background: ([^;]+)/)?.[1],
+                    borderColor: theme.colors.ui.border
+                  }}
+                >
+                  <LoreConnections nodes={loreNodes} />
+                  {loreNodes.map(node => (
+                    <LoreNode key={node.id} node={node} />
+                  ))}
+                </div>
+
+                {/* Right: Compass Choices */}
+                <div 
+                  className="relative rounded-xl border backdrop-blur-sm"
+                  style={{ 
+                    background: theme.backgrounds.compass.match(/background: ([^;]+)/)?.[1],
+                    borderColor: theme.colors.ui.border
+                  }}
+                >
+                  <div 
+                    className="absolute top-4 left-4 text-sm font-semibold"
+                    style={{ color: theme.colors.ui.textSecondary }}
+                  >
+                    Quick Actions
+                  </div>
+                  <div className="p-4 pt-12 space-y-3 max-h-full overflow-y-auto">
+                    {compassChoices.map((choice, index) => {
+                      const Icon = choice.icon;
+                      const interactionColors = getInteractionColors(choice.type);
+                      return (
+                        <div
+                          key={choice.id}
+                          className="p-3 rounded-lg border cursor-pointer transition-all"
+                          style={{
+                            backgroundColor: interactionColors.bg,
+                            borderColor: interactionColors.border,
+                            color: interactionColors.text
+                          }}
+                          onClick={() => handleChoice(choice.text, 'narrative_choice', undefined, undefined, index)}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon className="w-4 h-4" />
+                            <span className="text-xs font-bold">{choice.direction}</span>
+                          </div>
+                          <p className="text-xs">{choice.text}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Threats Display */}
+            {scene?.threat_updates && scene.threat_updates.length > 0 && (
+              <div 
+                className="mt-6 backdrop-blur-sm rounded-lg p-4 border"
+                style={{ 
+                  background: theme.components.threatPanel.base.match(/background: ([^;]+)/)?.[1],
+                  borderColor: theme.colors.danger.poison,
+                  borderLeft: `4px solid ${theme.colors.danger.poison}`
+                }}
+              >
+                <h3 
+                  className="font-semibold mb-3 flex items-center gap-2"
+                  style={{ color: theme.colors.danger.poison }}
+                >
+                  <AlertTriangle className="w-4 h-4" />
+                  Active Threats
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {scene.threat_updates.map((threat, idx) => (
+                    <div 
+                      key={idx} 
+                      className="p-3 rounded border-l-4"
+                      style={{ 
+                        background: theme.colors.ui.panel,
+                        borderLeftColor: theme.colors.danger.poison 
+                      }}
+                    >
+                      <div className="flex justify-between items-start">
+                        <h4 
+                          className="font-bold"
+                          style={{ color: theme.colors.danger.fire }}
+                        >
+                          {threat.threat_name}
+                        </h4>
+                        <span 
+                          className="text-xs px-2 py-1 rounded"
+                          style={{ 
+                            background: theme.colors.danger.shadow,
+                            color: theme.colors.ui.textMuted 
+                          }}
+                        >
+                          Level {threat.escalation_level}
+                        </span>
+                      </div>
+                      {threat.immediate_danger && (
+                        <p 
+                          className="text-sm font-medium mt-1"
+                          style={{ color: theme.colors.danger.blood }}
+                        >
+                          ⚠️ Immediate Danger!
+                        </p>
+                      )}
+                      {threat.resolution_methods && threat.resolution_methods.length > 0 && (
+                        <p 
+                          className="text-xs mt-1"
+                          style={{ color: theme.colors.ui.textMuted }}
+                        >
+                          Resolve by: {threat.resolution_methods.join(', ')}
+                        </p>
+                      )}
+                      {threat.affects_npcs && threat.affects_npcs.length > 0 && (
+                        <p 
+                          className="text-xs"
+                          style={{ color: theme.colors.ui.textMuted }}
+                        >
+                          Affects NPCs: {threat.affects_npcs.join(', ')}
+                        </p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Selected Node Details */}
+            {selectedNode && (
+              <div 
+                className="mt-6 backdrop-blur-sm rounded-lg p-4 border"
+                style={{ 
+                  background: theme.backgrounds.card.match(/background: ([^;]+)/)?.[1],
+                  borderColor: theme.colors.ui.border 
+                }}
+              >
+                <div className="flex items-center gap-2 mb-2">
+                  <Link 
+                    className="w-4 h-4"
+                    style={{ color: theme.colors.primary.emerald }}
+                  />
+                  <span 
+                    className="font-semibold"
+                    style={{ color: theme.colors.ui.text }}
+                  >
+                    {loreNodes.find(n => n.id === selectedNode)?.name}
+                  </span>
+                </div>
+                {(() => {
+                  const node = loreNodes.find(n => n.id === selectedNode);
+                  if (!node) return null;
+                  
+                  return (
+                    <div>
+                      {node.type === 'character' && node.data && (
+                        <>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Mood: {node.data.current_mood}
+                          </p>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Relationship: {node.data.relationship_level}/10
+                          </p>
+                          <p 
+                            className="text-sm mb-3"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Trust: {node.data.trust_level}/10
+                          </p>
+                          {node.data.faction && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Faction: {node.data.faction}
+                            </p>
+                          )}
+                          {node.data.skills && node.data.skills.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Skills: {node.data.skills.join(', ')}
+                            </p>
+                          )}
+                          {node.data.equipment && node.data.equipment.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Equipment: {node.data.equipment.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {node.type === 'item' && node.data && (
+                        <>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            {node.data.description}
+                          </p>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Durability: {node.data.durability}%
+                          </p>
+                          <p 
+                            className="text-sm mb-3"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Type: {node.data.item_type}
+                          </p>
+                          {Object.keys(node.data.properties).length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Properties: {JSON.stringify(node.data.properties)}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {node.type === 'threat' && node.data && (
+                        <>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Escalation Level: {node.data.escalation_level}/10
+                          </p>
+                          <p 
+                            className="text-sm mb-3"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Immediate Danger: {node.data.immediate_danger ? 'Yes' : 'No'}
+                          </p>
+                          {node.data.resolution_methods && node.data.resolution_methods.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Resolution: {node.data.resolution_methods.join(', ')}
+                            </p>
+                          )}
+                          {node.data.affects_npcs && node.data.affects_npcs.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Affects NPCs: {node.data.affects_npcs.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {node.type === 'objective' && node.data && (
+                        <>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            {node.data.description}
+                          </p>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Type: {node.data.quest_type}
+                          </p>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Progress: {node.data.progress}% {node.data.completed ? '(Completed)' : ''}
+                          </p>
+                          {node.data.rewards && node.data.rewards.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Rewards: {node.data.rewards.join(', ')}
+                            </p>
+                          )}
+                          {node.data.time_limit && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Time Limit: {node.data.time_limit}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {node.type === 'lore' && node.data && (
+                        <>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            {node.data.content}
+                          </p>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Category: {node.data.category}
+                          </p>
+                          <p 
+                            className="text-sm mb-3"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Importance: {node.data.importance_level}/10
+                          </p>
+                          {node.data.discovered_at && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Discovered: {new Date(node.data.discovered_at).toLocaleDateString()}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      {node.type === 'location' && node.data && node.data.details && (
+                        <>
+                          <p 
+                            className="text-sm mb-2"
+                            style={{ color: theme.colors.ui.textSecondary }}
+                          >
+                            Safety Level: {node.data.details.safety_level}/10
+                          </p>
+                          {node.data.details.exits.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Exits: {node.data.details.exits.join(', ')}
+                            </p>
+                          )}
+                          {node.data.details.hidden_areas.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Hidden Areas: {node.data.details.hidden_areas.join(', ')}
+                            </p>
+                          )}
+                          {node.data.details.resource_nodes.length > 0 && (
+                            <p 
+                              className="text-xs"
+                              style={{ color: theme.colors.ui.textMuted }}
+                            >
+                              Resource Nodes: {node.data.details.resource_nodes.join(', ')}
+                            </p>
+                          )}
+                        </>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        {node.type === 'character' && node.data?.interactable && (
+                          <button 
+                            onClick={() => handleChoice(`Talk to ${node.data.name}`, 'character_interaction', node.data.id, 'npc')}
+                            className="px-3 py-1 rounded text-xs transition-colors"
+                            style={{ 
+                              backgroundColor: theme.colors.interactive.communication.bg,
+                              borderColor: theme.colors.interactive.communication.border,
+                              color: theme.colors.interactive.communication.text,
+                              border: `1px solid ${theme.colors.interactive.communication.border}`
+                            }}
+                          >
+                            Interact
+                          </button>
+                        )}
+                        {node.type === 'item' && (
+                          <button 
+                            onClick={() => handleChoice(`Examine ${node.data.name}`, 'item_interaction', node.data.name, 'inventory_item')}
+                            className="px-3 py-1 rounded text-xs transition-colors"
+                            style={{ 
+                              backgroundColor: theme.colors.interactive.exploration.bg,
+                              borderColor: theme.colors.interactive.exploration.border,
+                              color: theme.colors.interactive.exploration.text,
+                              border: `1px solid ${theme.colors.interactive.exploration.border}`
+                            }}
+                          >
+                            Examine
+                          </button>
+                        )}
+                        {node.type === 'location' && (
+                          <button 
+                            onClick={() => handleChoice(`Explore ${node.data.name}`, 'location_interaction', node.data.name, 'location')}
+                            className="px-3 py-1 rounded text-xs transition-colors"
+                            style={{ 
+                              backgroundColor: theme.colors.interactive.exploration.bg,
+                              borderColor: theme.colors.interactive.exploration.border,
+                              color: theme.colors.interactive.exploration.text,
+                              border: `1px solid ${theme.colors.interactive.exploration.border}`
+                            }}
+                          >
+                            Explore
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GameScreenUI;
+
+
+
+
+/// Backup 
+'use client';
+import React, { useState, useEffect } from 'react';
+import { Eye, Users, MapPin, Package, Target, ArrowUp, ArrowDown, ArrowLeft, ArrowRight, ArrowUpRight, ArrowUpLeft, ArrowDownLeft, ArrowDownRight, Zap, Heart, Sword, Shield, Search, BookOpen, Link, AlertTriangle, Clock, Star, FlaskConical, Droplets, Syringe, TreePine, Fuel, Hammer, Landmark, ScrollText } from 'lucide-react'; // Added new icons
+import { useGameLogic } from "@/hooks/useGameLogic";
+
+const GameScreenUI = () => {
+  const { scene, loading, gameProgress, initialized, handleChoice } = useGameLogic();
+  const [activeView, setActiveView] = useState('compass');
+  const [selectedNode, setSelectedNode] = useState(null);
+  const [hoveredChoice, setHoveredChoice] = useState(null);
+
+  // Convert scene options to compass choices with directions
+  const convertToCompassChoices = (options) => {
+    if (!options || options.length === 0) return [];
+    
+    const directions = ['N', 'NE', 'E', 'SE', 'S', 'SW', 'W', 'NW'];
+    const typeMapping = {
+      'talk': 'communication',
+      'examine': 'investigation',
+      'use': 'exploration',
+      'attack': 'danger',
+      'hide': 'stealth',
+      'search': 'investigation',
+      'help': 'communication',
+      'take': 'exploration',
+      'read': 'knowledge',
+      'investigate': 'investigation',
+      'craft': 'crafting', // New type
+      'build': 'crafting', // New type
+      'gather': 'resource', // New type
+      'hunt': 'resource', // New type
+      'rest': 'survival', // New type
+      'sleep': 'survival' // New type
+    };
+
+    return options.map((option, index) => {
+      const direction = directions[index % directions.length];
+      const lowerOption = option.toLowerCase();
+      
+      // Determine type based on keywords in option text
+      let type = 'exploration';
+      for (const [keyword, optionType] of Object.entries(typeMapping)) {
+        if (lowerOption.includes(keyword)) {
+          type = optionType;
+          break;
+        }
+      }
+      
+      // Determine icon based on type
+      const iconMap = {
+        danger: AlertTriangle,
+        knowledge: BookOpen,
+        exploration: Search,
+        investigation: Eye,
+        communication: Users,
+        stealth: Shield,
+        crafting: Hammer, // New icon
+        resource: FlaskConical, // New icon
+        survival: Heart // New icon
+      };
+
+      return {
+        id: `choice-${index}`,
+        direction,
+        text: option,
+        type,
+        icon: iconMap[type] || Search,
+        consequences: [type, 'action'] // Simple consequences for now
+      };
+    });
+  };
+
+  // Generate lore nodes from game state
+  const generateLoreNodes = () => {
+    if (!scene) return [];
+    
+    const nodes = [];
+    const baseX = 150;
+    const baseY = 100;
+    const spacing = 80;
+
+    // Add characters as nodes
+    scene.characters?.forEach((character, index) => {
+      nodes.push({
+        id: `char-${character.id}`,
+        type: 'character',
+        name: character.name,
+        x: baseX + (index * spacing),
+        y: baseY,
+        connections: [],
+        data: character
+      });
+    });
+
+    // Add inventory items as nodes
+    scene.current_inventory?.forEach((item, index) => {
+      nodes.push({
+        id: `item-${item.name}`,
+        type: 'item',
+        name: item.name,
+        x: baseX + (index * spacing),
+        y: baseY + spacing,
+        connections: [],
+        data: item
+      });
+    });
+
+    // Add discovered secrets as nodes
+    scene.new_secrets?.forEach((secret, index) => {
+      nodes.push({
+        id: `secret-${index}`,
+        type: 'secret',
+        name: secret.substring(0, 20) + '...',
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 2,
+        connections: [],
+        data: { description: secret }
+      });
+    });
+
+    // Add objectives as nodes
+    scene.game_state?.active_objectives?.forEach((objective, index) => {
+      nodes.push({
+        id: `obj-${objective.id}`,
+        type: 'objective',
+        name: objective.description.substring(0, 20) + '...',
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 3,
+        connections: objective.involves_npcs?.map(npc => `char-${npc}`) || [],
+        data: objective
+      });
+    });
+
+    // Add threats as nodes
+    scene.threat_updates?.forEach((threat, index) => {
+      nodes.push({
+        id: `threat-${threat.threat_id}`,
+        type: 'threat',
+        name: threat.threat_name,
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 4,
+        connections: threat.affects_npcs?.map(npc => `char-${npc}`) || [],
+        data: threat
+      });
+    });
+
+    // Add current location as a node
+    if (scene.location) {
+      nodes.push({
+        id: 'location-current',
+        type: 'location',
+        name: scene.location,
+        x: baseX + spacing * 2,
+        y: baseY - spacing,
+        connections: nodes.filter(n => n.type === 'character').map(n => n.id),
+        data: { name: scene.location, details: scene.location_details }
+      });
+    }
+
+    // Add discovered lore as nodes
+    scene.discovered_lore?.forEach((lore, index) => {
+      nodes.push({
+        id: `lore-${lore.id}`,
+        type: 'lore',
+        name: lore.title,
+        x: baseX + (index * spacing),
+        y: baseY + spacing * 5,
+        connections: [],
+        data: lore
+      });
+    });
+
+    return nodes;
+  };
+
+  const compassChoices = convertToCompassChoices(scene?.options || []);
+  const loreNodes = generateLoreNodes();
+
+  if (!initialized) {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white flex items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-blue-600 mx-auto mb-4"></div>
+          <p className="text-gray-300">Loading game...</p>
+        </div>
+      </div>
+    );
+  }
+
+  const getDirectionIcon = (direction) => {
+    const icons = {
+      N: ArrowUp, S: ArrowDown, E: ArrowRight, W: ArrowLeft,
+      NE: ArrowUpRight, NW: ArrowUpLeft, SE: ArrowDownRight, SW: ArrowDownLeft
+    };
+    return icons[direction] || ArrowUp;
+  };
+
+  const getTypeColor = (type) => {
+    const colors = {
+      danger: 'text-red-400 border-red-400 bg-red-900/20',
+      knowledge: 'text-blue-400 border-blue-400 bg-blue-900/20',
+      exploration: 'text-green-400 border-green-400 bg-green-900/20',
+      investigation: 'text-purple-400 border-purple-400 bg-purple-900/20',
+      communication: 'text-yellow-400 border-yellow-400 bg-yellow-900/20',
+      stealth: 'text-gray-400 border-gray-400 bg-gray-900/20',
+      crafting: 'text-orange-400 border-orange-400 bg-orange-900/20', // New color
+      resource: 'text-lime-400 border-lime-400 bg-lime-900/20', // New color
+      survival: 'text-rose-400 border-rose-400 bg-rose-900/20' // New color
+    };
+    return colors[type] || colors.exploration;
+  };
+
+  const getNodeTypeColor = (type) => {
+    const colors = {
+      character: 'bg-blue-500',
+      secret: 'bg-purple-500',
+      item: 'bg-green-500',
+      location: 'bg-yellow-500',
+      threat: 'bg-red-500',
+      objective: 'bg-orange-500',
+      lore: 'bg-indigo-500' // New color
+    };
+    return colors[type] || 'bg-gray-500';
+  };
+
+  const getNodeIcon = (type) => {
+    const icons = {
+      character: Users,
+      secret: Eye,
+      item: Package,
+      location: MapPin,
+      threat: Zap,
+      objective: Target,
+      lore: BookOpen // New icon
+    };
+    return icons[type] || Package;
+  };
+
+  const getResourceColor = (level) => {
+    switch (level) {
+      case 'abundant': return 'text-green-400';
+      case 'moderate': return 'text-yellow-400';
+      case 'scarce': return 'text-orange-400';
+      case 'critical': return 'text-red-400';
+      default: return 'text-gray-400';
+    }
+  };
+
+  const CompassChoice = ({ choice, index, total }) => {
+    const angle = (index * 360) / total;
+    const radius = 140;
+    const x = Math.cos((angle - 90) * Math.PI / 180) * radius;
+    const y = Math.sin((angle - 90) * Math.PI / 180) * radius;
+    
+    const Icon = choice.icon;
+    const DirectionIcon = getDirectionIcon(choice.direction);
+    
+    return (
+      <div
+        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-300 ${
+          hoveredChoice === choice.id ? 'scale-110 z-10' : 'scale-100'
+        }`}
+        style={{ left: `calc(50% + ${x}px)`, top: `calc(50% + ${y}px)` }}
+        onMouseEnter={() => setHoveredChoice(choice.id)}
+        onMouseLeave={() => setHoveredChoice(null)}
+        onClick={() => handleChoice(choice.text, 'narrative_choice', undefined, undefined, index)}
+      >
+        <div className={`relative p-4 rounded-lg border-2 ${getTypeColor(choice.type)} backdrop-blur-sm min-w-[200px] max-w-[250px]`}>
+          <div className="flex items-center gap-2 mb-2">
+            <DirectionIcon className="w-4 h-4" />
+            <span className="text-xs font-bold">{choice.direction}</span>
+            <Icon className="w-4 h-4 ml-auto" />
+          </div>
+          <p className="text-sm font-medium mb-2">{choice.text}</p>
+          <div className="flex gap-1 flex-wrap">
+            {choice.consequences.map((consequence, idx) => (
+              <span key={idx} className="text-xs px-2 py-1 rounded bg-black/20">
+                {consequence}
+              </span>
+            ))}
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  const LoreNode = ({ node }) => {
+    const Icon = getNodeIcon(node.type);
+    
+    const handleNodeClick = () => {
+      setSelectedNode(selectedNode === node.id ? null : node.id);
+      
+      // Handle interactions based on node type
+      if (node.type === 'character' && node.data?.interactable) {
+        handleChoice(`Talk to ${node.data.name}`, 'character_interaction', node.data.id, 'npc');
+      } else if (node.type === 'item') {
+        handleChoice(`Examine ${node.data.name}`, 'item_interaction', node.data.name, 'inventory_item');
+      } else if (node.type === 'location') {
+        handleChoice(`Explore ${node.data.name}`, 'location_interaction', node.data.name, 'location');
+      } else if (node.type === 'objective') {
+        handleChoice(`Focus on ${node.data.description}`, 'quest_interaction', node.data.id, 'objective');
+      }
+    };
+    
+    return (
+      <div
+        className={`absolute transform -translate-x-1/2 -translate-y-1/2 cursor-pointer transition-all duration-300 ${
+          selectedNode === node.id ? 'scale-110 z-20' : 'scale-100'
+        }`}
+        style={{ left: node.x, top: node.y }}
+        onClick={handleNodeClick}
+      >
+        <div className={`w-12 h-12 rounded-full ${getNodeTypeColor(node.type)} flex items-center justify-center shadow-lg border-2 border-white/20`}>
+          <Icon className="w-6 h-6 text-white" />
+        </div>
+        <div className="absolute top-14 left-1/2 transform -translate-x-1/2 text-xs text-white bg-black/50 px-2 py-1 rounded whitespace-nowrap">
+          {node.name}
+        </div>
+      </div>
+    );
+  };
+
+  const LoreConnections = ({ nodes }) => {
+    return (
+      <svg className="absolute inset-0 pointer-events-none">
+        {nodes.map(node => 
+          node.connections.map(connectionId => {
+            const connectedNode = nodes.find(n => n.id === connectionId);
+            if (!connectedNode) return null;
+            
+            return (
+              <line
+                key={`${node.id}-${connectionId}`}
+                x1={node.x}
+                y1={node.y}
+                x2={connectedNode.x}
+                y2={connectedNode.y}
+                stroke="rgba(255,255,255,0.2)"
+                strokeWidth="2"
+                strokeDasharray="5,5"
+              />
+            );
+          })
+        )}
+      </svg>
+    );
+  };
+
+  return (
+    <div className="min-h-screen bg-gradient-to-br from-gray-900 via-black to-gray-800 text-white relative overflow-hidden">
+      {/* Atmospheric Background */}
+      <div className="absolute inset-0 bg-[radial-gradient(circle_at_center,rgba(239,68,68,0.1)_0%,transparent_50%)]" />
+      
+      {/* Header */}
+      <div className="relative z-10 p-6">
+        <div className="max-w-4xl mx-auto">
+          <h1 className="text-3xl font-bold mb-2 text-center">{scene?.world} - {scene?.location}</h1>
+          <div className="flex justify-center items-center gap-6 text-sm text-gray-300 mb-4 flex-wrap">
+            <span>Scenes: {gameProgress.scenes_completed}</span>
+            <span>Time: {Math.floor(gameProgress.play_time_minutes / 60)}h {gameProgress.play_time_minutes % 60}m</span>
+            <span>Tension: {gameProgress.tension_level}/10</span>
+            <span>Mood: {scene?.mood_atmosphere}</span>
+            {scene?.location_details?.safety_level && (
+              <span className="flex items-center gap-1">
+                Safety: {scene.location_details.safety_level}/10 <Shield className="w-3 h-3 text-green-400" />
+              </span>
+            )}
+          </div>
+          
+          {/* View Toggle */}
+          <div className="flex justify-center mb-6">
+            <div className="bg-black/30 rounded-lg p-1 flex">
+              <button
+                onClick={() => setActiveView('compass')}
+                className={`px-4 py-2 rounded-md transition-all ${
+                  activeView === 'compass' 
+                    ? 'bg-blue-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Narrative Compass
+              </button>
+              <button
+                onClick={() => setActiveView('lore')}
+                className={`px-4 py-2 rounded-md transition-all ${
+                  activeView === 'lore' 
+                    ? 'bg-purple-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Lore Map
+              </button>
+              <button
+                onClick={() => setActiveView('hybrid')}
+                className={`px-4 py-2 rounded-md transition-all ${
+                  activeView === 'hybrid' 
+                    ? 'bg-green-600 text-white' 
+                    : 'text-gray-400 hover:text-white'
+                }`}
+              >
+                Hybrid View
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Loading State */}
+      {loading && (
+        <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+          <div className="text-center">
+            <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600 mx-auto mb-4"></div>
+            <p className="text-gray-300">Loading next scene...</p>
+          </div>
+        </div>
+      )}
+
+      {/* Narration */}
+      {scene && (
+        <div className="relative z-10 px-6 mb-8">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-black/40 backdrop-blur-sm rounded-lg p-6 border border-gray-700">
+              <p className="text-gray-200 leading-relaxed">{scene.narration_text}</p>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Dialogue Section */}
+      {scene?.dialogue && scene.dialogue.length > 0 && (
+        <div className="relative z-10 px-6 mb-6">
+          <div className="max-w-4xl mx-auto">
+            <div className="bg-black/30 backdrop-blur-sm rounded-lg p-4 border border-gray-700">
+              <h3 className="font-semibold mb-3 text-blue-400">Dialogue:</h3>
+              <div className="space-y-2">
+                {scene.dialogue.map((line, idx) => (
+                  <div key={idx} className="border-l-4 border-blue-300 pl-3">
+                    <div className="flex items-center gap-2">
+                      <strong className="text-blue-400">{line.speaker}:</strong>
+                      {line.emotion && (
+                        <span className="text-xs bg-blue-100/20 px-2 py-1 rounded">{line.emotion}</span>
+                      )}
+                      {line.is_internal_thought && (
+                        <span className="text-xs bg-gray-100/20 px-2 py-1 rounded">Internal Thought</span>
+                      )}
+                    </div>
+                    <p className="text-gray-300">{line.text}</p>
+                  </div>
+                ))}
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Main Interactive Area */}
+      <div className="relative z-10 px-6 flex-1 pb-10">
+        <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-3 gap-6">
+          {/* Left Panel: Survival Stats */}
+          <div className="lg:col-span-1 space-y-6">
+            {/* { scene?.game_state?.resource_availability && (
+              <div className="bg-black/30 backdrop-blur-sm rounded-lg p-4 border border-gray-700">
+                <h3 className="font-semibold mb-3 text-yellow-400 flex items-center gap-2">
+                  <Star className="w-4 h-4" />
+                  Resources
+                </h3>
+                <div className="space-y-2 text-sm">
+                  {Object.entries(scene.game_state.resource_availability).map(([key, value]) => (
+                    <div key={key} className="flex justify-between items-center">
+                      <span className="capitalize">{key.replace('_', ' ')}:</span>
+                      <span className={`${getResourceColor(value)} font-medium capitalize`}>{value}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {scene?.game_state?.environmental_conditions && (
+              <div className="bg-black/30 backdrop-blur-sm rounded-lg p-4 border border-gray-700">
+                <h3 className="font-semibold mb-3 text-cyan-400 flex items-center gap-2">
+                  <FlaskConical className="w-4 h-4" />
+                  Environment
+                </h3>
+                <div className="space-y-2 text-sm">
+                  <div className="flex justify-between">
+                    <span>Weather:</span>
+                    <span className="text-gray-300 capitalize">{scene.game_state.environmental_conditions.weather}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Visibility:</span>
+                    <span className="text-gray-300 capitalize">{scene.game_state.environmental_conditions.visibility}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Temperature:</span>
+                    <span className="text-gray-300 capitalize">{scene.game_state.environmental_conditions.temperature}</span>
+                  </div>
+                  <div className="flex justify-between">
+                    <span>Hazard Level:</span>
+                    <span className={`${scene.game_state.environmental_conditions.hazard_level > 5 ? 'text-red-400' : 'text-green-400'} font-medium`}>
+                      {scene.game_state.environmental_conditions.hazard_level}/10
+                    </span>
+                  </div>
+                </div>
+              </div>
+            )} */}
+
+            {scene?.interactive_elements && scene.interactive_elements.length > 0 && (
+              <div className="bg-black/30 backdrop-blur-sm rounded-lg p-4 border border-gray-700">
+                <h3 className="font-semibold mb-3 text-teal-400 flex items-center gap-2">
+                  <Link className="w-4 h-4" />
+                  Interactive Elements
+                </h3>
+                <div className="space-y-2">
+                  {scene.interactive_elements.map((element, idx) => (
+                    <div key={idx} 
+                         className="p-2 rounded bg-gray-800/50 cursor-pointer hover:bg-gray-700/50 transition-colors"
+                         onClick={() => handleChoice(`Interact with ${element.name}`, 'environmental_interaction', element.id, 'interactive_element')}
+                    >
+                      <p className="text-sm font-bold">{element.name}</p>
+                      <p className="text-xs text-gray-400">{element.description}</p>
+                      <div className="flex flex-wrap gap-1 mt-1">
+                        {element.interaction_types.map((type, tIdx) => (
+                          <span key={tIdx} className="text-xs px-2 py-0.5 rounded bg-blue-900/30 text-blue-300">{type}</span>
+                        ))}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Center Panel: Compass/Lore View */}
+          <div className="lg:col-span-2">
+            {/* Compass View */}
+            {activeView === 'compass' && (
+              <div className="relative h-96 bg-black/20 rounded-xl border border-gray-700 backdrop-blur-sm">
+                {/* Center Hub */}
+                <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 z-10">
+                  <div className="w-16 h-16 bg-gradient-to-br from-blue-500 to-purple-600 rounded-full flex items-center justify-center shadow-2xl">
+                    <Target className="w-8 h-8 text-white" />
+                  </div>
+                  <div className="absolute top-20 left-1/2 transform -translate-x-1/2 text-xs text-center text-gray-400">
+                    Choose your path
+                  </div>
+                </div>
+
+                {/* Compass Choices */}
+                {compassChoices.map((choice, index) => (
+                  <CompassChoice
+                    key={choice.id}
+                    choice={choice}
+                    index={index}
+                    total={compassChoices.length}
+                  />
+                ))}
+
+                {/* Direction indicators */}
+                <div className="absolute top-4 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">N</div>
+                <div className="absolute bottom-4 left-1/2 transform -translate-x-1/2 text-xs text-gray-500">S</div>
+                <div className="absolute top-1/2 left-4 transform -translate-y-1/2 text-xs text-gray-500">W</div>
+                <div className="absolute top-1/2 right-4 transform -translate-y-1/2 text-xs text-gray-500">E</div>
+              </div>
+            )}
+
+            {/* Lore Map View */}
+            {activeView === 'lore' && (
+              <div className="relative h-96 bg-black/20 rounded-xl border border-gray-700 backdrop-blur-sm">
+                <LoreConnections nodes={loreNodes} />
+                
+                {loreNodes.map(node => (
+                  <LoreNode key={node.id} node={node} />
+                ))}
+
+                {/* Legend */}
+                <div className="absolute top-4 right-4 bg-black/50 p-3 rounded-lg text-xs">
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-blue-500 rounded-full"></div>
+                    <span>Character</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-purple-500 rounded-full"></div>
+                    <span>Secret</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-green-500 rounded-full"></div>
+                    <span>Item</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-yellow-500 rounded-full"></div>
+                    <span>Location</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-red-500 rounded-full"></div>
+                    <span>Threat</span>
+                  </div>
+                  <div className="flex items-center gap-2 mb-1">
+                    <div className="w-3 h-3 bg-orange-500 rounded-full"></div>
+                    <span>Objective</span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <div className="w-3 h-3 bg-indigo-500 rounded-full"></div>
+                    <span>Lore</span>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Hybrid View */}
+            {activeView === 'hybrid' && (
+              <div className="grid grid-cols-2 gap-6 h-96"> {/* Changed to 2 columns for hybrid */}
+                {/* Left: Lore Map */}
+                <div className="relative bg-black/20 rounded-xl border border-gray-700 backdrop-blur-sm">
+                  <LoreConnections nodes={loreNodes} />
+                  {loreNodes.map(node => (
+                    <LoreNode key={node.id} node={node} />
+                  ))}
+                </div>
+
+                {/* Right: Compass Choices */}
+                <div className="relative bg-black/20 rounded-xl border border-gray-700 backdrop-blur-sm">
+                  <div className="absolute top-4 left-4 text-sm font-semibold text-gray-300">Quick Actions</div>
+                  <div className="p-4 pt-12 space-y-3 max-h-full overflow-y-auto">
+                    {compassChoices.map((choice, index) => {
+                      const Icon = choice.icon;
+                      return (
+                        <div
+                          key={choice.id}
+                          className={`p-3 rounded-lg border cursor-pointer transition-all ${getTypeColor(choice.type)}`}
+                          onClick={() => handleChoice(choice.text, 'narrative_choice', undefined, undefined, index)}
+                        >
+                          <div className="flex items-center gap-2 mb-1">
+                            <Icon className="w-4 h-4" />
+                            <span className="text-xs font-bold">{choice.direction}</span>
+                          </div>
+                          <p className="text-xs">{choice.text}</p>
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Threats Display */}
+            {scene?.threat_updates && scene.threat_updates.length > 0 && (
+              <div className="mt-6 bg-red-900/20 backdrop-blur-sm rounded-lg p-4 border border-red-700">
+                <h3 className="font-semibold mb-3 text-red-400 flex items-center gap-2">
+                  <AlertTriangle className="w-4 h-4" />
+                  Active Threats
+                </h3>
+                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                  {scene.threat_updates.map((threat, idx) => (
+                    <div key={idx} className="bg-black/30 p-3 rounded border-l-4 border-red-400">
+                      <div className="flex justify-between items-start">
+                        <h4 className="font-bold text-red-300">{threat.threat_name}</h4>
+                        <span className="text-xs bg-red-100/20 px-2 py-1 rounded">Level {threat.escalation_level}</span>
+                      </div>
+                      {threat.immediate_danger && (
+                        <p className="text-sm text-red-400 font-medium mt-1">⚠️ Immediate Danger!</p>
+                      )}
+                      {threat.resolution_methods && threat.resolution_methods.length > 0 && (
+                        <p className="text-xs text-gray-400 mt-1">Resolve by: {threat.resolution_methods.join(', ')}</p>
+                      )}
+                      {threat.affects_npcs && threat.affects_npcs.length > 0 && (
+                        <p className="text-xs text-gray-400">Affects NPCs: {threat.affects_npcs.join(', ')}</p>
+                      )}
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {/* Selected Node Details */}
+            {selectedNode && (
+              <div className="mt-6 bg-black/40 backdrop-blur-sm rounded-lg p-4 border border-gray-700">
+                <div className="flex items-center gap-2 mb-2">
+                  <Link className="w-4 h-4 text-blue-400" />
+                  <span className="font-semibold">
+                    {loreNodes.find(n => n.id === selectedNode)?.name}
+                  </span>
+                </div>
+                {(() => {
+                  const node = loreNodes.find(n => n.id === selectedNode);
+                  if (!node) return null;
+                  
+                  return (
+                    <div>
+                      {node.type === 'character' && node.data && (
+                        <>
+                          <p className="text-sm text-gray-300 mb-2">Mood: {node.data.current_mood}</p>
+                          <p className="text-sm text-gray-300 mb-2">Relationship: {node.data.relationship_level}/10</p>
+                          <p className="text-sm text-gray-300 mb-3">Trust: {node.data.trust_level}/10</p>
+                          {node.data.faction && <p className="text-xs text-gray-400">Faction: {node.data.faction}</p>}
+                          {node.data.skills && node.data.skills.length > 0 && <p className="text-xs text-gray-400">Skills: {node.data.skills.join(', ')}</p>}
+                          {node.data.equipment && node.data.equipment.length > 0 && <p className="text-xs text-gray-400">Equipment: {node.data.equipment.join(', ')}</p>}
+                        </>
+                      )}
+                      {node.type === 'item' && node.data && (
+                        <>
+                          <p className="text-sm text-gray-300 mb-2">{node.data.description}</p>
+                          <p className="text-sm text-gray-300 mb-2">Durability: {node.data.durability}%</p>
+                          <p className="text-sm text-gray-300 mb-3">Type: {node.data.item_type}</p>
+                          {Object.keys(node.data.properties).length > 0 && (
+                            <p className="text-xs text-gray-400">Properties: {JSON.stringify(node.data.properties)}</p>
+                          )}
+                        </>
+                      )}
+                      {node.type === 'threat' && node.data && (
+                        <>
+                          <p className="text-sm text-gray-300 mb-2">Escalation Level: {node.data.escalation_level}/10</p>
+                          <p className="text-sm text-gray-300 mb-3">Immediate Danger: {node.data.immediate_danger ? 'Yes' : 'No'}</p>
+                          {node.data.resolution_methods && node.data.resolution_methods.length > 0 && <p className="text-xs text-gray-400">Resolution: {node.data.resolution_methods.join(', ')}</p>}
+                          {node.data.affects_npcs && node.data.affects_npcs.length > 0 && <p className="text-xs text-gray-400">Affects NPCs: {node.data.affects_npcs.join(', ')}</p>}
+                        </>
+                      )}
+                      {node.type === 'objective' && node.data && (
+                        <>
+                          <p className="text-sm text-gray-300 mb-2">{node.data.description}</p>
+                          <p className="text-sm text-gray-300 mb-2">Type: {node.data.quest_type}</p>
+                          <p className="text-sm text-gray-300 mb-2">Progress: {node.data.progress}% {node.data.completed ? '(Completed)' : ''}</p>
+                          {node.data.rewards && node.data.rewards.length > 0 && <p className="text-xs text-gray-400">Rewards: {node.data.rewards.join(', ')}</p>}
+                          {node.data.time_limit && <p className="text-xs text-gray-400">Time Limit: {node.data.time_limit}</p>}
+                        </>
+                      )}
+                      {node.type === 'lore' && node.data && (
+                        <>
+                          <p className="text-sm text-gray-300 mb-2">{node.data.content}</p>
+                          <p className="text-sm text-gray-300 mb-2">Category: {node.data.category}</p>
+                          <p className="text-sm text-gray-300 mb-3">Importance: {node.data.importance_level}/10</p>
+                          {node.data.discovered_at && <p className="text-xs text-gray-400">Discovered: {new Date(node.data.discovered_at).toLocaleDateString()}</p>}
+                        </>
+                      )}
+                       {node.type === 'location' && node.data && node.data.details && (
+                        <>
+                          <p className="text-sm text-gray-300 mb-2">Safety Level: {node.data.details.safety_level}/10</p>
+                          {node.data.details.exits.length > 0 && <p className="text-xs text-gray-400">Exits: {node.data.details.exits.join(', ')}</p>}
+                          {node.data.details.hidden_areas.length > 0 && <p className="text-xs text-gray-400">Hidden Areas: {node.data.details.hidden_areas.join(', ')}</p>}
+                          {node.data.details.resource_nodes.length > 0 && <p className="text-xs text-gray-400">Resource Nodes: {node.data.details.resource_nodes.join(', ')}</p>}
+                        </>
+                      )}
+                      <div className="flex gap-2 mt-3">
+                        {node.type === 'character' && node.data?.interactable && (
+                          <button 
+                            onClick={() => handleChoice(`Talk to ${node.data.name}`, 'character_interaction', node.data.id, 'npc')}
+                            className="px-3 py-1 bg-blue-600 rounded text-xs hover:bg-blue-700"
+                          >
+                            Interact
+                          </button>
+                        )}
+                        {node.type === 'item' && (
+                          <button 
+                            onClick={() => handleChoice(`Examine ${node.data.name}`, 'item_interaction', node.data.name, 'inventory_item')}
+                            className="px-3 py-1 bg-green-600 rounded text-xs hover:bg-green-700"
+                          >
+                            Examine
+                          </button>
+                        )}
+                         {node.type === 'location' && (
+                          <button 
+                            onClick={() => handleChoice(`Explore ${node.data.name}`, 'location_interaction', node.data.name, 'location')}
+                            className="px-3 py-1 bg-yellow-600 rounded text-xs hover:bg-yellow-700"
+                          >
+                            Explore
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  );
+                })()}
+              </div>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+export default GameScreenUI;
+                    
