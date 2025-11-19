@@ -1,12 +1,32 @@
 {
-  "scene_tag": "starting_area_crash_site_search",
-  "location": "starting_area",
-  "world": "Jurassic Park Survival",
-  "narration_text": "Sinbad, deciding the backpack holds less immediate value than a comprehensive sweep of the crash site, leaves it behind. The jungle floor is a chaotic jumble of shattered metal, torn fabric, and unearthed earth. The air hangs heavy with the smell of jet fuel and crushed vegetation. Every rustle of leaves, every snap of a twig, sends a jolt of adrenaline through you. The helicopter's mangled remains provide scant comfort, and the silence is almost deafening, broken only by the distant calls of unseen creatures. You push onward, scanning the debris field for anything useful, anything that might aid your survival.",
+  "scene_tag": "naruto_hokage_force_entry",
+  "location": "Konohagakure Entrance",
+  "world": "Naruto",
+  "narration_text": "Ignoring their warnings, Sinbad surges forward, attempting to push past Izumo and Kotetsu. The two guards, though surprised by the sudden aggression, react quickly. Izumo intercepts with a sharp palm strike aimed at Sinbad's chest, while Kotetsu moves to flank, ready to restrain him. The air crackles with potential energy, the threat of jutsu hanging heavy.",
   "dialogue": [
     {
+      "speaker": "Izumo",
+      "text": "Halt! You will not pass without authorization!",
+      "emotion": "stern",
+      "is_internal_thought": false,
+      "audible_to": [
+        "Sinbad",
+        "Kotetsu"
+      ]
+    },
+    {
+      "speaker": "Kotetsu",
+      "text": "Stand down and state your business properly, or we will be forced to use force.",
+      "emotion": "warning",
+      "is_internal_thought": false,
+      "audible_to": [
+        "Sinbad",
+        "Izumo"
+      ]
+    },
+    {
       "speaker": "Sinbad",
-      "text": "Gotta focus. There has to be something useful here.",
+      "text": "\"I don't have time for this!\"",
       "emotion": "determined",
       "is_internal_thought": true,
       "audible_to": []
@@ -14,49 +34,97 @@
   ],
   "characters": [
     {
-      "id": "sinbad",
-      "name": "Sinbad",
-      "avatar": "sinbad_avatar",
-      "interactable": false,
-      "relationship_level": 0,
-      "current_mood": "cautious",
-      "trust_level": 0,
-      "memories": [],
-      "personal_objectives": [],
+      "id": "izumo",
+      "name": "Gate Guard Izumo",
+      "avatar": "izumo_avatar",
+      "interactable": true,
+      "relationship_level": -3,
+      "current_mood": "annoyed",
+      "trust_level": -3,
+      "memories": [
+        "Tried to bluff past him.",
+        "Attempted to force entry."
+      ],
+      "personal_objectives": [
+        "Guard the gate."
+      ],
       "knowledge_flags": {},
       "backstory": null,
-      "faction": null,
-      "skills": null,
-      "equipment": null
+      "faction": "Konohagakure",
+      "skills": [
+        "Taijutsu",
+        "Basic Ninjutsu"
+      ],
+      "equipment": [
+        "Kunai",
+        "Shuriken"
+      ]
+    },
+    {
+      "id": "kotetsu",
+      "name": "Gate Guard Kotetsu",
+      "avatar": "kotetsu_avatar",
+      "interactable": true,
+      "relationship_level": -3,
+      "current_mood": "annoyed",
+      "trust_level": -3,
+      "memories": [
+        "Tried to bluff past him.",
+        "Attempted to force entry."
+      ],
+      "personal_objectives": [
+        "Guard the gate."
+      ],
+      "knowledge_flags": {},
+      "backstory": null,
+      "faction": "Konohagakure",
+      "skills": [
+        "Taijutsu",
+        "Basic Ninjutsu"
+      ],
+      "equipment": [
+        "Kunai",
+        "Shuriken"
+      ]
     }
   ],
   "options": [
-    "Examine the Twisted Communications Panel more closely.",
-    "Search for survivors among the wreckage.",
-    "Proceed further into the jungle along the jungle path."
+    "Fight back against the guards.",
+    "Attempt to reason with them again.",
+    "Try a different tactic - offer a bribe."
   ],
   "game_state": {
-    "relationships": {},
+    "relationships": {
+      "izumo": -3,
+      "kotetsu": -3
+    },
     "revealed_secrets": [],
     "completed_objectives": [],
     "failed_objectives": [],
     "active_objectives": [
       {
-        "id": "survive_island",
-        "description": "Survive on the island and find a way to contact the outside world.",
+        "id": "gain_entry",
+        "description": "Gain entry into Konohagakure.",
         "quest_type": "main",
         "completed": false,
-        "involves_npcs": [],
-        "progress": 5,
-        "escalation_level": 1,
+        "involves_npcs": [
+          "izumo",
+          "kotetsu"
+        ],
+        "progress": 10,
+        "escalation_level": 2,
         "rewards": null,
         "time_limit": null
       }
     ],
     "location_flags": {},
-    "story_flags": {},
+    "story_flags": {
+      "naruto_start": true
+    },
     "reputation": {},
-    "major_events": [],
+    "major_events": [
+      "Attempted forced entry into Konohagakure."
+    ],
     "environmental_conditions": {
       "weather": "clear",
       "visibility": "normal",
@@ -79,63 +147,46 @@
   },
   "current_inventory": [],
   "mood_atmosphere": "tense",
-  "history_entry": "Sinbad leaves the backpack behind to continue searching the crash site for useful supplies and potential survivors.",
-  "relationship_changes": {},
+  "history_entry": "Sinbad attempts to force his way past Izumo and Kotetsu, resulting in a confrontation at the gates.",
+  "relationship_changes": {
+    "izumo": -1,
+    "kotetsu": -1
+  },
   "new_secrets": [],
   "new_objectives": [],
   "completed_objectives_this_scene": [],
-  "interactive_elements": [
-    {
-      "id": "communications_panel",
-      "name": "Twisted Communications Panel",
-      "description": "The helicopter's communications panel, mangled but potentially salvageable.",
-      "interaction_types": [
-        "examine",
-        "repair"
-      ],
-      "requires_items": [
-        "tools"
-      ],
-      "unlocks_options": [
-        "attempt_transmission"
-      ],
-      "options": [],
-      "potential_outcomes": {},
-      "side_quest_trigger": null
-    },
-    {
-      "id": "medical_kit",
-      "name": "Medical Kit",
-      "description": "A small medical kit with basic supplies.",
-      "interaction_types": [
-        "open",
-        "take"
-      ],
-      "requires_items": [],
-      "unlocks_options": [],
-      "options": [],
-      "potential_outcomes": {},
-      "side_quest_trigger": null
-    }
-  ],
+  "interactive_elements": [],
   "environmental_discoveries": [],
   "threat_updates": [],
   "ambient_events": [],
   "discovered_lore": [],
   "world_info": {
-    "name": "Jurassic Park Survival",
-    "theme": "Adventure",
-    "description": "A remote island sanctuary home to genetically engineered dinosaurs.",
-    "key_locations": [],
-    "dominant_factions": [],
-    "major_threats": [],
-    "cultural_notes": [],
+    "name": "Naruto",
+    "theme": "adventure",
+    "description": "A world of ninjas, chakra, and powerful jutsu.",
+    "key_locations": [
+      "Konohagakure",
+      "Hidden Sand Village",
+      "Hidden Mist Village"
+    ],
+    "dominant_factions": [
+      "Konohagakure",
+      "Akatsuki"
+    ],
+    "major_threats": [
+      "Akatsuki",
+      "Orochimaru"
+    ],
+    "cultural_notes": [
+      "Importance of teamwork",
+      "Ninja code of conduct"
+    ],
     "historical_timeline": []
   },
   "location_details": {
     "exits": [
-      "jungle_path",
-      "crashed_helicopter"
+      "Road to other villages",
+      "Forest Path"
     ],
     "hidden_areas": [],
     "resource_nodes": [],
