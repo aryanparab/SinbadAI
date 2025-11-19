@@ -10,7 +10,12 @@ db_file = "data/agent_memory.db"
 session_id = "sakurawave1311@gmail.com"
 
 # Create memory with persistent storage
-memory_db = SqliteMemoryDb(table_name="game_memory", db_file=db_file)
+from storage import get_memory_db
+
+# Automatically uses correct DB based on environment
+memory_db = get_memory_db()
+# memory = Memory(db=memory_db)
+# memory_db = SqliteMemoryDb(table_name="game_memory", db_file=db_file)
 memory = Memory(db=memory_db)
 print(memory)
 memory_db.clear()

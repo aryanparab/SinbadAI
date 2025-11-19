@@ -1,22 +1,48 @@
 {
-  "scene_tag": "walking_dead_scene_1",
-  "location": "Abandoned Gas Station",
-  "world": "The Walking Dead",
-  "narration_text": "The biting wind whips around you, Sinbad, carrying the stench of decay. You find yourself standing before an abandoned gas station, its windows boarded up and a rusted 'Help Wanted' sign swaying precariously. Cars litter the forecourt, some overturned, others stripped bare. A thick layer of grime coats everything, a testament to the chaos that has consumed the world. The air is heavy with an unsettling silence, broken only by the occasional groan that seems to emanate from the shadows. This is your new reality, Sinbad. A fight for survival in a world overrun by the undead.",
+  "scene_tag": "zcity_main_street_approach",
+  "location": "Z-City Main Street",
+  "world": "One Punch Man",
+  "narration_text": "Emerging from the grimy alleyway, Sinbad finds himself on the edge of Z-City's main street. The atmosphere shifts from unsettling quiet to a low hum of activity. Buildings rise tall, casting long shadows, but the street itself is surprisingly devoid of people. A few overturned cars and shattered windows hint at recent chaos. A peculiar sight catches your eye: a lone hot dog vendor stands patiently by his cart, seemingly unfazed by the surroundings. The air carries a strange mix of exhaust fumes and\u2026something vaguely reptilian.",
   "dialogue": [
     {
-      "speaker": "Sinbad",
-      "text": "Damn... this is it, huh? Guess I'm on my own.",
-      "emotion": "grim",
-      "is_internal_thought": true,
-      "audible_to": []
+      "speaker": "Hot Dog Vendor",
+      "text": "Hey there, pal. Welcome to Z-City. Care for a dog? Best in the\u2026well, only game in town right now.",
+      "emotion": "neutral",
+      "is_internal_thought": false,
+      "audible_to": [
+        "Sinbad"
+      ]
     }
   ],
-  "characters": [],
+  "characters": [
+    {
+      "id": "hotdog_vendor",
+      "name": "Hot Dog Vendor",
+      "avatar": "unknown",
+      "interactable": true,
+      "relationship_level": 0,
+      "current_mood": "calm",
+      "trust_level": 0,
+      "memories": [],
+      "personal_objectives": [],
+      "knowledge_flags": {},
+      "backstory": null,
+      "faction": null,
+      "skills": [
+        "cooking",
+        "salesmanship"
+      ],
+      "equipment": [
+        "hot dog cart",
+        "ingredients"
+      ]
+    }
+  ],
   "options": [
-    "Search the gas station.",
-    "Check the abandoned cars.",
-    "Head down the road."
+    "Approach the hot dog vendor.",
+    "Investigate the overturned cars.",
+    "Head further down the main street.",
+    "Check inventory (currently empty)"
   ],
   "game_state": {
     "relationships": {},
@@ -25,37 +51,39 @@
     "failed_objectives": [],
     "active_objectives": [
       {
-        "id": "survive_first_day",
-        "description": "Survive the first day in this new world.",
-        "quest_type": "Survival",
+        "id": "understand_surroundings",
+        "description": "Understand your surroundings and determine how you arrived in Z-City.",
+        "quest_type": "main",
         "completed": false,
         "involves_npcs": [],
-        "progress": 0,
-        "escalation_level": 2,
+        "progress": 10,
+        "escalation_level": 1,
         "rewards": null,
         "time_limit": null
       }
     ],
     "location_flags": {
-      "gas_station_visited": false
+      "main_street_visited": true
     },
     "story_flags": {
-      "world_chosen": "walking_dead"
+      "arrived_in_one_punch_man": "true"
     },
     "reputation": {},
-    "major_events": [],
+    "major_events": [
+      "Sinbad reached the main street of Z-City."
+    ],
     "environmental_conditions": {
-      "weather": "windy",
-      "visibility": "moderate",
-      "temperature": "cold",
+      "weather": "clear",
+      "visibility": "normal",
+      "temperature": "moderate",
       "hazard_level": 3
     },
     "resource_availability": {
       "food": "scarce",
       "water": "scarce",
-      "medical_supplies": "very scarce",
+      "medical_supplies": "scarce",
       "shelter_materials": "moderate",
-      "fuel": "very scarce",
+      "fuel": "scarce",
       "tools": "scarce"
     }
   },
@@ -65,117 +93,64 @@
     "modified_items": []
   },
   "current_inventory": [],
-  "mood_atmosphere": "desolate",
-  "history_entry": "Sinbad begins his journey in a world overrun by the undead, finding himself at an abandoned gas station.",
-  "relationship_changes": {},
+  "mood_atmosphere": "uncertain",
+  "history_entry": "Sinbad exits the alleyway and arrives on Z-City's main street. He encounters a hot dog vendor amidst signs of recent monster attacks.",
+  "relationship_changes": {
+    "hotdog_vendor": 1
+  },
   "new_secrets": [],
   "new_objectives": [],
   "completed_objectives_this_scene": [],
-  "interactive_elements": [
-    {
-      "id": "gas_station_door",
-      "name": "Gas Station Door",
-      "description": "The boarded-up entrance to the gas station. Appears weak.",
-      "interaction_types": [
-        "Open",
-        "Break Down"
-      ],
-      "requires_items": [],
-      "unlocks_options": [],
-      "options": [],
-      "potential_outcomes": {
-        "success": "Access to the gas station interior.",
-        "failure": "Attract unwanted attention."
-      },
-      "side_quest_trigger": null
-    },
-    {
-      "id": "abandoned_cars",
-      "name": "Abandoned Cars",
-      "description": "Various cars, some wrecked, some seemingly untouched.",
-      "interaction_types": [
-        "Search"
-      ],
-      "requires_items": [],
-      "unlocks_options": [],
-      "options": [],
-      "potential_outcomes": {
-        "success": "Find supplies or weapons.",
-        "failure": "Encounter a walker."
-      },
-      "side_quest_trigger": null
-    }
-  ],
+  "interactive_elements": [],
   "environmental_discoveries": [],
-  "threat_updates": [
-    {
-      "threat_id": "wandering_walkers",
-      "threat_name": "Wandering Walkers",
-      "escalation_level": 2,
-      "immediate_danger": false,
-      "resolution_methods": [
-        "Avoidance",
-        "Melee Combat",
-        "Ranged Combat"
-      ],
-      "affects_npcs": []
-    }
-  ],
+  "threat_updates": [],
   "ambient_events": [
     {
-      "event_type": "distant_groan",
-      "description": "A faint, guttural groan echoes from down the road.",
+      "event_type": "distant_roar",
+      "description": "A distant, guttural roar echoes through the city.",
       "affects_mood": true,
       "creates_opportunities": []
     }
   ],
   "discovered_lore": [],
   "world_info": {
-    "name": "The Walking Dead",
-    "theme": "Survival Horror",
-    "description": "A post-apocalyptic world overrun by hordes of undead 'walkers'. Humanity struggles to survive in scattered settlements, facing constant threats from both the undead and other desperate survivors.",
+    "name": "One Punch Man",
+    "theme": "Superhero Parody",
+    "description": "A world plagued by monsters and protected by heroes, where power levels are often absurd and the strongest hero can defeat any enemy with a single punch.",
     "key_locations": [
-      "Atlanta",
-      "Alexandria",
-      "The Sanctuary",
-      "Hilltop"
+      "Z-City",
+      "Hero Association Headquarters"
     ],
     "dominant_factions": [
-      "Alexandria Safe-Zone",
-      "The Saviors",
-      "The Whisperers"
+      "Hero Association",
+      "Monster Association (dormant)"
     ],
     "major_threats": [
-      "Walkers",
-      "Hostile Survivors",
-      "Resource Scarcity"
+      "Monsters",
+      "Mysterious Beings"
     ],
     "cultural_notes": [
-      "Constant struggle for resources.",
-      "Distrust of strangers.",
-      "Importance of self-reliance."
+      "Hero worship",
+      "Frequent monster attacks",
+      "Absurd power levels"
     ],
     "historical_timeline": [
       {
-        "The Outbreak": [
-          "Initial outbreak of the zombie virus.",
-          "Collapse of civilization."
+        "recent": [
+          "Rise of Saitama",
+          "Monster Association War (previous)"
         ]
       }
     ]
   },
   "location_details": {
     "exits": [
-      "Road North",
-      "Road South"
+      "West: Leads back to the alleyway.",
+      "North: Continues down the main street.",
+      "Side streets."
     ],
-    "hidden_areas": [
-      "Behind the gas station"
-    ],
-    "resource_nodes": [
-      "Cars (potential for fuel and parts)",
-      "Gas Station (potential for supplies)"
-    ],
+    "hidden_areas": [],
+    "resource_nodes": [],
     "safety_level": 3
   }
 }

@@ -12,6 +12,10 @@ from routes.memory_service import (
 import logging
 import json
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+load_dotenv()
 
 router = APIRouter()
 logger = logging.getLogger(__name__)
@@ -268,7 +272,7 @@ async def interact(input: AgentInput):
     try: 
         # Build comprehensive game context
         game_context = create_game_context(input)
-        
+       
         logger.info(f"Processing interaction for session {input.session_id}")
         logger.info(f"Player choice: {input.player_choice}")
         logger.info(f"Player scenes completed: {input.game_progress.scenes_completed}")

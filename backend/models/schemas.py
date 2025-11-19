@@ -42,7 +42,7 @@ class Character(BaseModel):
     trust_level: int = Field(ge=-10, le=10)  # -10 to 10
     memories: List[str]
     personal_objectives: List[str]
-    knowledge_flags: Dict[str, bool]
+    knowledge_flags: Dict[str, Any]
     backstory: Optional[str] = None
     faction: Optional[str] = None
     skills: Optional[List[str]] = None

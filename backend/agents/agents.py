@@ -8,6 +8,7 @@ from dotenv import load_dotenv
 import os
 import asyncio
 import json
+from data.storage import get_memory_db
 
 # Import Pydantic models
 from models.schemas import (
@@ -19,8 +20,10 @@ from models.schemas import (
 
 load_dotenv()
 
-db_file = "data/agent_memory.db"
-os.makedirs("data", exist_ok=True)
+memory_db = get_memory_db()
+
+
+
 
 # Initialize models
 try:
@@ -38,11 +41,11 @@ except Exception as e:
     exit(1)
 
 # Setup Memory
-memory = Memory(
-    model=gemini_model,
-    db=SqliteMemoryDb(table_name="game_memory", db_file=db_file)
-)
-
+# memory = Memory(
+#     model=gemini_model,
+#     db=SqliteMemoryDb(table_name="game_memory", db_file=db_file)
+# )
+memory = Memory( model=gemini_model,db=memory_db)
 # OPTIMIZED AGENTS - STREAMLINED FOR EFFICIENCY
 
 narrative_tool = Agent(

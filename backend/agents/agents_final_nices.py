@@ -8,15 +8,22 @@ from dotenv import load_dotenv
 import os
 import asyncio
 import json
+import logging
+
 
 load_dotenv()
 
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
 # 👤 Unique per-player session (could be UUID or token)
+from data.storage import get_memory_db
 
-db_file = "data/agent_memory.db"
 
-# Ensure data directory exists
-os.makedirs("data", exist_ok=True)
+# Initialize memory with environment-appropriate database
+memory_db = get_memory_db()
+
+memory = Memory(db=memory_db)
 
 # Initialize models with proper error handling
 try:
@@ -41,10 +48,10 @@ except Exception as e:
     exit(1)
 
 # 🎓 Setup Memory Agent (persistent across sessions)
-memory = Memory(
-    model=gemini_model,
-    db=SqliteMemoryDb(table_name="game_memory", db_file=db_file)
-)
+# memory = Memory(
+#     model=gemini_model,
+#     db=SqliteMemoryDb(table_name="game_memory", db_file=db_file)
+# )
 
 
 # 📖 Narrative Tool Agent

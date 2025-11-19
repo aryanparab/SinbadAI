@@ -5,6 +5,8 @@ import { useSession } from "next-auth/react";
 import { useRouter } from "next/navigation";
 import { useGameContext } from '@/components/GameContext';
 
+import "../styles/home.css";
+
 export default function HomeScreen() {
   const { data: session } = useSession();
   const session_id = session?.user?.email || "guest_session";
