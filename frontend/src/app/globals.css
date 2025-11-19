@@ -424,6 +424,42 @@ body {
   background-clip: text;
 }
 
+/* Saved Game Card */
+.homepage .saved-game-card {
+  margin-top: var(--space-xl);
+  background: rgba(31, 41, 55, 0.5);
+  backdrop-filter: blur(8px);
+  padding: var(--space-xl);
+  border-radius: var(--radius-xl);
+  border: 1px solid rgba(139, 92, 246, 0.2);
+  max-width: 700px;
+  margin-left: auto;
+  margin-right: auto;
+}
+
+.homepage .saved-game-title {
+  font-size: 1.25rem;
+  font-weight: 600;
+  margin-bottom: var(--space-sm);
+  color: #c084fc;
+}
+
+.homepage .saved-game-label {
+  font-size: 0.875rem;
+  color: var(--text-secondary);
+  margin-bottom: var(--space-sm);
+}
+
+.homepage .saved-game-label strong {
+  color: #a78bfa;
+}
+
+.homepage .saved-game-text {
+  color: var(--text-primary);
+  font-style: italic;
+  line-height: 1.6;
+}
+
 /* Container */
 .homepage .container {
   max-width: 1280px;

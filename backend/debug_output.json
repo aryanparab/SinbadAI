@@ -1,143 +1,62 @@
 {
-  "scene_tag": "naruto_hokage_force_entry",
-  "location": "Konohagakure Entrance",
-  "world": "Naruto",
-  "narration_text": "Ignoring their warnings, Sinbad surges forward, attempting to push past Izumo and Kotetsu. The two guards, though surprised by the sudden aggression, react quickly. Izumo intercepts with a sharp palm strike aimed at Sinbad's chest, while Kotetsu moves to flank, ready to restrain him. The air crackles with potential energy, the threat of jutsu hanging heavy.",
+  "scene_tag": "walking_dead_scene_1",
+  "location": "Abandoned Gas Station",
+  "world": "The Walking Dead",
+  "narration_text": "The biting wind whips around you, Sinbad, carrying the stench of decay. You find yourself standing before an abandoned gas station, its windows boarded up and a rusted 'Help Wanted' sign swaying precariously. Cars litter the forecourt, some overturned, others stripped bare. A thick layer of grime coats everything, a testament to the chaos that has consumed the world. The air is heavy with an unsettling silence, broken only by the occasional groan that seems to emanate from the shadows. This is your new reality, Sinbad. A fight for survival in a world overrun by the undead.",
   "dialogue": [
     {
-      "speaker": "Izumo",
-      "text": "Halt! You will not pass without authorization!",
-      "emotion": "stern",
-      "is_internal_thought": false,
-      "audible_to": [
-        "Sinbad",
-        "Kotetsu"
-      ]
-    },
-    {
-      "speaker": "Kotetsu",
-      "text": "Stand down and state your business properly, or we will be forced to use force.",
-      "emotion": "warning",
-      "is_internal_thought": false,
-      "audible_to": [
-        "Sinbad",
-        "Izumo"
-      ]
-    },
-    {
       "speaker": "Sinbad",
-      "text": "\"I don't have time for this!\"",
-      "emotion": "determined",
+      "text": "Damn... this is it, huh? Guess I'm on my own.",
+      "emotion": "grim",
       "is_internal_thought": true,
       "audible_to": []
     }
   ],
-  "characters": [
-    {
-      "id": "izumo",
-      "name": "Gate Guard Izumo",
-      "avatar": "izumo_avatar",
-      "interactable": true,
-      "relationship_level": -3,
-      "current_mood": "annoyed",
-      "trust_level": -3,
-      "memories": [
-        "Tried to bluff past him.",
-        "Attempted to force entry."
-      ],
-      "personal_objectives": [
-        "Guard the gate."
-      ],
-      "knowledge_flags": {},
-      "backstory": null,
-      "faction": "Konohagakure",
-      "skills": [
-        "Taijutsu",
-        "Basic Ninjutsu"
-      ],
-      "equipment": [
-        "Kunai",
-        "Shuriken"
-      ]
-    },
-    {
-      "id": "kotetsu",
-      "name": "Gate Guard Kotetsu",
-      "avatar": "kotetsu_avatar",
-      "interactable": true,
-      "relationship_level": -3,
-      "current_mood": "annoyed",
-      "trust_level": -3,
-      "memories": [
-        "Tried to bluff past him.",
-        "Attempted to force entry."
-      ],
-      "personal_objectives": [
-        "Guard the gate."
-      ],
-      "knowledge_flags": {},
-      "backstory": null,
-      "faction": "Konohagakure",
-      "skills": [
-        "Taijutsu",
-        "Basic Ninjutsu"
-      ],
-      "equipment": [
-        "Kunai",
-        "Shuriken"
-      ]
-    }
-  ],
+  "characters": [],
   "options": [
-    "Fight back against the guards.",
-    "Attempt to reason with them again.",
-    "Try a different tactic - offer a bribe."
+    "Search the gas station.",
+    "Check the abandoned cars.",
+    "Head down the road."
   ],
   "game_state": {
-    "relationships": {
-      "izumo": -3,
-      "kotetsu": -3
-    },
+    "relationships": {},
     "revealed_secrets": [],
     "completed_objectives": [],
     "failed_objectives": [],
     "active_objectives": [
       {
-        "id": "gain_entry",
-        "description": "Gain entry into Konohagakure.",
-        "quest_type": "main",
+        "id": "survive_first_day",
+        "description": "Survive the first day in this new world.",
+        "quest_type": "Survival",
         "completed": false,
-        "involves_npcs": [
-          "izumo",
-          "kotetsu"
-        ],
-        "progress": 10,
+        "involves_npcs": [],
+        "progress": 0,
         "escalation_level": 2,
         "rewards": null,
         "time_limit": null
       }
     ],
-    "location_flags": {},
+    "location_flags": {
+      "gas_station_visited": false
+    },
     "story_flags": {
-      "naruto_start": true
+      "world_chosen": "walking_dead"
     },
     "reputation": {},
-    "major_events": [
-      "Attempted forced entry into Konohagakure."
-    ],
+    "major_events": [],
     "environmental_conditions": {
-      "weather": "clear",
-      "visibility": "normal",
-      "temperature": "comfortable",
-      "hazard_level": 0
+      "weather": "windy",
+      "visibility": "moderate",
+      "temperature": "cold",
+      "hazard_level": 3
     },
     "resource_availability": {
-      "food": "moderate",
-      "water": "moderate",
-      "medical_supplies": "scarce",
+      "food": "scarce",
+      "water": "scarce",
+      "medical_supplies": "very scarce",
       "shelter_materials": "moderate",
-      "fuel": "scarce",
-      "tools": "moderate"
+      "fuel": "very scarce",
+      "tools": "scarce"
     }
   },
   "inventory_changes": {
@@ -146,50 +65,117 @@
     "modified_items": []
   },
   "current_inventory": [],
-  "mood_atmosphere": "tense",
-  "history_entry": "Sinbad attempts to force his way past Izumo and Kotetsu, resulting in a confrontation at the gates.",
-  "relationship_changes": {
-    "izumo": -1,
-    "kotetsu": -1
-  },
+  "mood_atmosphere": "desolate",
+  "history_entry": "Sinbad begins his journey in a world overrun by the undead, finding himself at an abandoned gas station.",
+  "relationship_changes": {},
   "new_secrets": [],
   "new_objectives": [],
   "completed_objectives_this_scene": [],
-  "interactive_elements": [],
+  "interactive_elements": [
+    {
+      "id": "gas_station_door",
+      "name": "Gas Station Door",
+      "description": "The boarded-up entrance to the gas station. Appears weak.",
+      "interaction_types": [
+        "Open",
+        "Break Down"
+      ],
+      "requires_items": [],
+      "unlocks_options": [],
+      "options": [],
+      "potential_outcomes": {
+        "success": "Access to the gas station interior.",
+        "failure": "Attract unwanted attention."
+      },
+      "side_quest_trigger": null
+    },
+    {
+      "id": "abandoned_cars",
+      "name": "Abandoned Cars",
+      "description": "Various cars, some wrecked, some seemingly untouched.",
+      "interaction_types": [
+        "Search"
+      ],
+      "requires_items": [],
+      "unlocks_options": [],
+      "options": [],
+      "potential_outcomes": {
+        "success": "Find supplies or weapons.",
+        "failure": "Encounter a walker."
+      },
+      "side_quest_trigger": null
+    }
+  ],
   "environmental_discoveries": [],
-  "threat_updates": [],
-  "ambient_events": [],
+  "threat_updates": [
+    {
+      "threat_id": "wandering_walkers",
+      "threat_name": "Wandering Walkers",
+      "escalation_level": 2,
+      "immediate_danger": false,
+      "resolution_methods": [
+        "Avoidance",
+        "Melee Combat",
+        "Ranged Combat"
+      ],
+      "affects_npcs": []
+    }
+  ],
+  "ambient_events": [
+    {
+      "event_type": "distant_groan",
+      "description": "A faint, guttural groan echoes from down the road.",
+      "affects_mood": true,
+      "creates_opportunities": []
+    }
+  ],
   "discovered_lore": [],
   "world_info": {
-    "name": "Naruto",
-    "theme": "adventure",
-    "description": "A world of ninjas, chakra, and powerful jutsu.",
+    "name": "The Walking Dead",
+    "theme": "Survival Horror",
+    "description": "A post-apocalyptic world overrun by hordes of undead 'walkers'. Humanity struggles to survive in scattered settlements, facing constant threats from both the undead and other desperate survivors.",
     "key_locations": [
-      "Konohagakure",
-      "Hidden Sand Village",
-      "Hidden Mist Village"
+      "Atlanta",
+      "Alexandria",
+      "The Sanctuary",
+      "Hilltop"
     ],
     "dominant_factions": [
-      "Konohagakure",
-      "Akatsuki"
+      "Alexandria Safe-Zone",
+      "The Saviors",
+      "The Whisperers"
     ],
     "major_threats": [
-      "Akatsuki",
-      "Orochimaru"
+      "Walkers",
+      "Hostile Survivors",
+      "Resource Scarcity"
     ],
     "cultural_notes": [
-      "Importance of teamwork",
-      "Ninja code of conduct"
+      "Constant struggle for resources.",
+      "Distrust of strangers.",
+      "Importance of self-reliance."
     ],
-    "historical_timeline": []
+    "historical_timeline": [
+      {
+        "The Outbreak": [
+          "Initial outbreak of the zombie virus.",
+          "Collapse of civilization."
+        ]
+      }
+    ]
   },
   "location_details": {
     "exits": [
-      "Road to other villages",
-      "Forest Path"
+      "Road North",
+      "Road South"
     ],
-    "hidden_areas": [],
-    "resource_nodes": [],
-    "safety_level": 5
+    "hidden_areas": [
+      "Behind the gas station"
+    ],
+    "resource_nodes": [
+      "Cars (potential for fuel and parts)",
+      "Gas Station (potential for supplies)"
+    ],
+    "safety_level": 3
   }
 }

@@ -73,10 +73,10 @@ export default function HomeScreen() {
 
   if (loading) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-gray-900 to-black text-white">
-        <div className="text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-purple-500 mx-auto mb-4"></div>
-          <p className="text-lg">Loading your adventure...</p>
+      <div className="homepage" style={{ minHeight: '100vh', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+        <div style={{ textAlign: 'center' }}>
+          <div className="spinner" style={{ margin: '0 auto 1rem' }}></div>
+          <p style={{ fontSize: '1.125rem', color: 'var(--text-secondary)' }}>Loading your adventure...</p>
         </div>
       </div>
     );
@@ -100,12 +100,13 @@ export default function HomeScreen() {
           </div>
           
           <h1 className="hero-title fade-in" style={{ animationDelay: '0.1s' }}>
-            🧙‍♂️ Welcome to Sinbad AI
+            🎭 Welcome to Shadow Council
           </h1>
           
           <p className="hero-description fade-in" style={{ animationDelay: '0.2s' }}>
-            A narrative-driven adventure where your choices shape not just the story,
-            but reveal who you truly are. Every decision matters. Every path is unique.
+            Powered by Sinbad AI's multi-agent system. A narrative-driven adventure where 
+            your choices shape not just the story, but reveal who you truly are. 
+            Every decision matters. Every path is unique.
           </p>
           
           <div className="hero-actions fade-in" style={{ animationDelay: '0.3s' }}>
@@ -139,12 +140,12 @@ export default function HomeScreen() {
           </div>
 
           {hasSavedGame && (
-            <div className="fade-in mt-8 bg-gray-800/50 backdrop-blur-sm p-6 rounded-xl border border-purple-500/20 max-w-2xl mx-auto" style={{ animationDelay: '0.4s' }}>
-              <h3 className="text-xl font-semibold mb-2 text-purple-300">🗂️ Saved Game Found</h3>
-              <p className="text-sm text-gray-300 mb-3">
-                <strong className="text-purple-400">Last memory:</strong>
+            <div className="fade-in saved-game-card" style={{ animationDelay: '0.4s' }}>
+              <h3 className="saved-game-title">🗂️ Saved Game Found</h3>
+              <p className="saved-game-label">
+                <strong>Last memory:</strong>
               </p>
-              <p className="text-gray-200 italic">
+              <p className="saved-game-text">
                 {lastNarration.substring(0, 200)}{lastNarration.length > 200 ? '...' : ''}
               </p>
             </div>
@@ -234,8 +235,8 @@ export default function HomeScreen() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
                 </svg>
               </div>
-              <h3>Multi-Agent Orchestration</h3>
-              <p>10+ specialized AI agents coordinate behind the scenes—World Builder, NPC Manager, Quest Designer, and more.</p>
+              <h3>Sinbad AI Orchestration</h3>
+              <p>10+ specialized AI agents coordinate behind the scenes—World Builder, NPC Manager, Quest Designer, and more work in harmony.</p>
               <div className="feature-tags">
                 <span className="badge badge-danger">10+ Agents</span>
                 <span className="badge badge-danger">Coordinated</span>
@@ -262,8 +263,8 @@ export default function HomeScreen() {
                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M14.828 14.828a4 4 0 01-5.656 0M9 10h.01M15 10h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                 </svg>
               </div>
-              <h3>Play as Sinbad</h3>
-              <p>Step into the shoes of Sinbad, the legendary adventurer. Make choices, forge alliances, and write your own legend.</p>
+              <h3>Named After the Legend</h3>
+              <p>The Sinbad AI system—inspired by the legendary adventurer—orchestrates your journey. Make choices, forge alliances, and write your own legend.</p>
               <div className="feature-tags">
                 <span className="badge badge-success">Role-Play</span>
                 <span className="badge badge-success">Interactive</span>
@@ -358,10 +359,10 @@ export default function HomeScreen() {
             </div>
             
             <div className="tech-info">
-              <h2>Built on Advanced AI</h2>
+              <h2>Built on Sinbad AI</h2>
               <p className="tech-description">
-                Sinbad AI uses a sophisticated multi-agent architecture with persistent
-                memory and cloud synchronization for seamless adventures.
+                Shadow Council uses Sinbad AI's sophisticated multi-agent architecture 
+                with persistent memory and cloud synchronization for seamless adventures.
               </p>
               
               <ul className="tech-features">
@@ -471,8 +472,8 @@ export default function HomeScreen() {
         <div className="container">
           <div className="footer-content">
             <div className="footer-brand">
-              <h3>Sinbad AI</h3>
-              <p>Multi-Agent AI RPG Adventure</p>
+              <h3>Shadow Council</h3>
+              <p>Powered by Sinbad AI Multi-Agent System</p>
             </div>
             <div className="footer-links">
               <a href="#features" onClick={e => { e.preventDefault(); scrollToSection('features'); }}>
@@ -487,7 +488,7 @@ export default function HomeScreen() {
             </div>
           </div>
           <div className="footer-bottom">
-            <p>&copy; 2025 Sinbad AI. Built with React, FastAPI, and Advanced LLMs.</p>
+            <p>&copy; 2025 Shadow Council. Built with Sinbad AI, React, FastAPI, and Advanced LLMs.</p>
           </div>
         </div>
       </footer>

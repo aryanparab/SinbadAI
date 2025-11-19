@@ -30,8 +30,8 @@ export default function Navbar() {
             </svg>
           </div>
           <div className="brand-text">
-            <span className="brand-name">Sinbad AI</span>
-            <span className="brand-tagline">Multi-Agent RPG</span>
+            <span className="brand-name">Shadow Council</span>
+            <span className="brand-tagline">Powered by Sinbad AI</span>
           </div>
         </button>
 
