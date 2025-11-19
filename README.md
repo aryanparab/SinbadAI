@@ -1,7 +1,7 @@
 
-# 🧞‍♂️ Sinbad AI
+# 🧞‍♂️ Shadow Council - Powered by Sinbad AI
 
-**Sinbad AI** is an interactive story-based adventure game powered by AI. Players enter the name of any world (e.g., *Jurassic Park*, *One Piece*), and the AI generates a game universe with lore, characters, and dynamic storylines. The user plays as **Sinbad**, making choices in AI-generated scenes that shape the journey.
+**Shadow Council** is an interactive story-based adventure game powered by AI. Players enter the name of any world (e.g., *Jurassic Park*, *One Piece*), and the AI generates a game universe with lore, characters, and dynamic storylines. The user plays as **Sinbad**, making choices in AI-generated scenes that shape the journey.
 
 ---
 
