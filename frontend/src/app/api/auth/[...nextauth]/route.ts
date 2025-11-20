@@ -1,18 +1,21 @@
-import NextAuth from "next-auth";
+import NextAuth, { NextAuthOptions } from "next-auth";
 import GoogleProvider from "next-auth/providers/google";
-import { NextAuthOptions } from "next-auth";
 
 export const authOptions: NextAuthOptions = {
-  
   providers: [
     GoogleProvider({
       clientId: process.env.GOOGLE_CLIENT_ID!,
       clientSecret: process.env.GOOGLE_CLIENT_SECRET!,
+      authorization: {
+        params: {
+          prompt: "consent",
+          access_type: "offline",
+          response_type: "code"
+        }
+      }
     }),
-    
   ],
   secret: process.env.NEXTAUTH_SECRET,
-debug: true, // ⭐ Add this for debugging
   session: {
     strategy: 'jwt',
   },
@@ -23,15 +26,14 @@ debug: true, // ⭐ Add this for debugging
       }
       return session;
     },
-    
   },
+  // ⭐ Add these for production
+  pages: {
+    signIn: '/',
+  },
+  // ⭐ Only enable debug in development
+  debug: process.env.NODE_ENV === 'development',
 };
-
-console.log('=== NextAuth Config Debug ===');
-console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
-console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET);
-console.log('Client ID preview:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
-console.log("next urlk",process.env.NEXTAUTH_URL);
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
