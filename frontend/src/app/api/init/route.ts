@@ -4,9 +4,11 @@ export async function POST(req: NextRequest) {
   try {
 
     const data = await req.json();
+    let use_path = "https://sinbadai.onrender.com/game/init";
+   //use_path = "http://localhost:8000/game/init";
     console.log(data)
     // Your existing backend logic here (send data to FastAPI or run logic)
-    const response = await fetch('http://localhost:8000/game/init', {
+    const response = await fetch(use_path, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(data),
