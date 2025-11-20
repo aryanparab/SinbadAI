@@ -3,6 +3,7 @@
 
 **Shadow Council** is an interactive story-based adventure game powered by AI. Players enter the name of any world (e.g., *Jurassic Park*, *One Piece*), and the AI generates a game universe with lore, characters, and dynamic storylines. The user plays as **Sinbad**, making choices in AI-generated scenes that shape the journey.
 
+Checkout here : https://sinbad-ai.vercel.app/
 ---
 
 ## 🚀 Features
