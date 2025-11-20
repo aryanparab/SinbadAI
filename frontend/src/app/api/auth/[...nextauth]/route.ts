@@ -12,7 +12,7 @@ export const authOptions: NextAuthOptions = {
     
   ],
   secret: process.env.NEXTAUTH_SECRET,
-  debug: true, // ⭐ Add this for debugging
+debug: true, // ⭐ Add this for debugging
   session: {
     strategy: 'jwt',
   },
