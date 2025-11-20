@@ -27,11 +27,11 @@ export const authOptions: NextAuthOptions = {
   },
 };
 
-// console.log('=== NextAuth Config Debug ===');
-// console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
-// console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET);
-// console.log('Client ID preview:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
-// console.log("next urlk",process.env.NEXTAUTH_URL);
+console.log('=== NextAuth Config Debug ===');
+console.log('GOOGLE_CLIENT_ID:', process.env.GOOGLE_CLIENT_ID);
+console.log('GOOGLE_CLIENT_SECRET:', process.env.GOOGLE_CLIENT_SECRET);
+console.log('Client ID preview:', process.env.GOOGLE_CLIENT_ID?.substring(0, 20) + '...');
+console.log("next urlk",process.env.NEXTAUTH_URL);
 
 const handler = NextAuth(authOptions);
 export { handler as GET, handler as POST };
