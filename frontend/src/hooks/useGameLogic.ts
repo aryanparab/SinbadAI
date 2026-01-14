@@ -308,14 +308,52 @@ useEffect(() => {
 
       if (!response.ok) {
         const errorText = await response.text();
+        console.error("API Error Response:", errorText);
         throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
       }
 
-      const data: SceneResponse = await response.json();
+      const rawData = await response.json();
       
-      // Validate response data
+      console.log("=== FRONTEND: Received response ===");
+      console.log("Full response keys:", Object.keys(rawData));
+      console.log("scene_tag:", rawData.scene_tag, `(${typeof rawData.scene_tag})`);
+      console.log("location:", rawData.location, `(${typeof rawData.location})`);
+      console.log("world:", rawData.world, `(${typeof rawData.world})`);
+      console.log("=============================");
+      
+      // Check for missing fields and add defaults if needed
+      const data = rawData as SceneResponse;
+      const missingFields: string[] = [];
+      
+      if (!data.scene_tag) {
+        console.warn("⚠️ FRONTEND: scene_tag is missing, adding default");
+        data.scene_tag = `fallback_scene_${Date.now()}`;
+        missingFields.push('scene_tag');
+      }
+      
+      if (!data.location) {
+        console.warn("⚠️ FRONTEND: location is missing, adding default");
+        data.location = "Unknown Location";
+        missingFields.push('location');
+      }
+      
+      if (!data.world) {
+        console.warn("⚠️ FRONTEND: world is missing, adding default");
+        data.world = "Unknown World";
+        missingFields.push('world');
+      }
+      
+      if (missingFields.length > 0) {
+        console.warn("⚠️ FRONTEND: Added defaults for missing fields:", missingFields);
+      }
+      
+      // Final validation - this should now always pass
       if (!data.scene_tag || !data.location || !data.world) {
-        throw new Error("Invalid response: missing required fields");
+        console.error("❌ FRONTEND: Still missing critical fields after fixing");
+        console.error("scene_tag:", data.scene_tag);
+        console.error("location:", data.location);
+        console.error("world:", data.world);
+        throw new Error("Invalid response: missing required fields even after fixes");
       }
 
       setScene(data);

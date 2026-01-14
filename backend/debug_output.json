@@ -1,91 +1,129 @@
 {
-  "scene_tag": "zcity_main_street_approach",
-  "location": "Z-City Main Street",
-  "world": "One Punch Man",
-  "narration_text": "Emerging from the grimy alleyway, Sinbad finds himself on the edge of Z-City's main street. The atmosphere shifts from unsettling quiet to a low hum of activity. Buildings rise tall, casting long shadows, but the street itself is surprisingly devoid of people. A few overturned cars and shattered windows hint at recent chaos. A peculiar sight catches your eye: a lone hot dog vendor stands patiently by his cart, seemingly unfazed by the surroundings. The air carries a strange mix of exhaust fumes and\u2026something vaguely reptilian.",
+  "scene_tag": "confrontation_with_stranger",
+  "location": "starting_area",
+  "world": "The walking dead",
+  "narration_text": "As I approach the other NPC, I can't help but feel a sense of caution. We're in a post-apocalyptic world, after all. I decide to attack, just in case they're a threat. The other NPC quickly becomes defensive and retaliates with a swing of their fist. I dodge out of the way just in time, but I know this isn't going to end well. I charge at the other NPC, prepared to fight.",
   "dialogue": [
     {
-      "speaker": "Hot Dog Vendor",
-      "text": "Hey there, pal. Welcome to Z-City. Care for a dog? Best in the\u2026well, only game in town right now.",
-      "emotion": "neutral",
+      "speaker": "other npc",
+      "text": "Back off, stranger!",
+      "emotion": "angry",
       "is_internal_thought": false,
       "audible_to": [
-        "Sinbad"
+        "Sarah",
+        "player",
+        "other npc"
+      ]
+    },
+    {
+      "speaker": "player",
+      "text": "I'm not afraid of you.",
+      "emotion": "confident",
+      "is_internal_thought": false,
+      "audible_to": [
+        "Sarah",
+        "player",
+        "other npc"
       ]
     }
   ],
   "characters": [
     {
-      "id": "hotdog_vendor",
-      "name": "Hot Dog Vendor",
-      "avatar": "unknown",
+      "id": "Sinbad",
+      "name": "Sinbad",
+      "avatar": "defaultavatar",
       "interactable": true,
       "relationship_level": 0,
-      "current_mood": "calm",
-      "trust_level": 0,
+      "current_mood": "cautious",
+      "trust_level": -5,
+      "memories": [
+        "spoke_with_Sarah"
+      ],
+      "personal_objectives": [
+        "find_safety"
+      ],
+      "knowledge_flags": {},
+      "backstory": "Traveler through the post-apocalyptic world.",
+      "faction": null,
+      "skills": null,
+      "equipment": null
+    },
+    {
+      "id": "other_npc",
+      "name": "Other NPC",
+      "avatar": "unknown_avatar",
+      "interactable": true,
+      "relationship_level": -5,
+      "current_mood": "angry",
+      "trust_level": -10,
       "memories": [],
       "personal_objectives": [],
       "knowledge_flags": {},
-      "backstory": null,
+      "backstory": "Unkown",
       "faction": null,
-      "skills": [
-        "cooking",
-        "salesmanship"
+      "skills": null,
+      "equipment": null
+    },
+    {
+      "id": "Sarah",
+      "name": "Sarah",
+      "avatar": "defaultavatar",
+      "interactable": false,
+      "relationship_level": 5,
+      "current_mood": "concerned",
+      "trust_level": 5,
+      "memories": [
+        "spoke_with_Sinbad"
       ],
-      "equipment": [
-        "hot dog cart",
-        "ingredients"
-      ]
+      "personal_objectives": [
+        "find_friends"
+      ],
+      "knowledge_flags": {},
+      "backstory": "One of the survivors in this post-apocalyptic world.",
+      "faction": null,
+      "skills": null,
+      "equipment": null
     }
   ],
   "options": [
-    "Approach the hot dog vendor.",
-    "Investigate the overturned cars.",
-    "Head further down the main street.",
-    "Check inventory (currently empty)"
+    "Talk to the other NPC",
+    "Attack the other NPC again"
   ],
   "game_state": {
-    "relationships": {},
+    "relationships": {
+      "other_npc": -10
+    },
     "revealed_secrets": [],
+    "major_story_events": [
+      "confrontation_with_stranger"
+    ],
+    "active_objectives": [],
     "completed_objectives": [],
-    "failed_objectives": [],
-    "active_objectives": [
-      {
-        "id": "understand_surroundings",
-        "description": "Understand your surroundings and determine how you arrived in Z-City.",
-        "quest_type": "main",
-        "completed": false,
-        "involves_npcs": [],
-        "progress": 10,
-        "escalation_level": 1,
-        "rewards": null,
-        "time_limit": null
-      }
-    ],
-    "location_flags": {
-      "main_street_visited": true
-    },
     "story_flags": {
-      "arrived_in_one_punch_man": "true"
+      "settlement_discovered": false
     },
-    "reputation": {},
-    "major_events": [
-      "Sinbad reached the main street of Z-City."
-    ],
+    "player_reputation": {
+      "aggressive": true
+    },
     "environmental_conditions": {
       "weather": "clear",
       "visibility": "normal",
-      "temperature": "moderate",
-      "hazard_level": 3
+      "temperature": "comfortable",
+      "hazard_level": 0
     },
     "resource_availability": {
       "food": "scarce",
       "water": "scarce",
       "medical_supplies": "scarce",
-      "shelter_materials": "moderate",
+      "shelter": "scarce",
       "fuel": "scarce",
-      "tools": "scarce"
-    }
+      "tools": "scarce",
+      "shelter_materials": "moderate"
+    },
+    "failed_objectives": [],
+    "major_events": [],
+    "location_flags": {},
+    "reputation": {}
   },
   "inventory_changes": {
     "added_items": [],
@@ -93,64 +131,46 @@
     "modified_items": []
   },
   "current_inventory": [],
-  "mood_atmosphere": "uncertain",
-  "history_entry": "Sinbad exits the alleyway and arrives on Z-City's main street. He encounters a hot dog vendor amidst signs of recent monster attacks.",
-  "relationship_changes": {
-    "hotdog_vendor": 1
-  },
+  "mood_atmosphere": "intense",
+  "history_entry": "I attacked the other NPC, but they retaliated. We're in the middle of a heated confrontation.",
+  "relationship_changes": {},
   "new_secrets": [],
   "new_objectives": [],
   "completed_objectives_this_scene": [],
   "interactive_elements": [],
   "environmental_discoveries": [],
   "threat_updates": [],
-  "ambient_events": [
-    {
-      "event_type": "distant_roar",
-      "description": "A distant, guttural roar echoes through the city.",
-      "affects_mood": true,
-      "creates_opportunities": []
-    }
-  ],
+  "ambient_events": [],
   "discovered_lore": [],
   "world_info": {
-    "name": "One Punch Man",
-    "theme": "Superhero Parody",
-    "description": "A world plagued by monsters and protected by heroes, where power levels are often absurd and the strongest hero can defeat any enemy with a single punch.",
+    "name": "The Walking Dead",
+    "theme": "adventure",
+    "description": "A world ravaged by a zombie outbreak.",
     "key_locations": [
-      "Z-City",
-      "Hero Association Headquarters"
+      "starting_area"
     ],
     "dominant_factions": [
-      "Hero Association",
-      "Monster Association (dormant)"
+      "survivors"
     ],
     "major_threats": [
-      "Monsters",
-      "Mysterious Beings"
+      "zombies",
+      "other NPCs"
     ],
-    "cultural_notes": [
-      "Hero worship",
-      "Frequent monster attacks",
-      "Absurd power levels"
-    ],
-    "historical_timeline": [
-      {
-        "recent": [
-          "Rise of Saitama",
-          "Monster Association War (previous)"
-        ]
-      }
-    ]
+    "cultural_notes": [],
+    "historical_timeline": []
   },
   "location_details": {
     "exits": [
-      "West: Leads back to the alleyway.",
-      "North: Continues down the main street.",
-      "Side streets."
+      "north",
+      "south",
+      "east",
+      "west"
     ],
     "hidden_areas": [],
-    "resource_nodes": [],
-    "safety_level": 3
+    "resource_nodes": [
+      "food",
+      "water"
+    ],
+    "safety_level": 5
   }
 }

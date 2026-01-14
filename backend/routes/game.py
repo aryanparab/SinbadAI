@@ -276,18 +276,48 @@ async def interact(input: AgentInput):
         logger.info(f"Processing interaction for session {input.session_id}")
         logger.info(f"Player choice: {input.player_choice}")
         logger.info(f"Player scenes completed: {input.game_progress.scenes_completed}")
-        print(f"Processing interaction for session {input.session_id}")
+        print(f"\n{'='*60}")
+        print(f"BACKEND DEBUG: Processing interaction")
+        print(f"Session ID: {input.session_id}")
         print(f"Player choice: {input.player_choice}")
-        print(f"Player scenes completed: {input.game_progress.scenes_completed}")  # Fixed
+        print(f"Scenes completed: {input.game_progress.scenes_completed}")
+        print(f"Current location: {input.current_location}")
+        print(f"Current world: {input.current_world}")
+        print(f"{'='*60}\n")
         
         # Get response from coordinated game agents
-        raw_result_str = await process_game_turn(game_context, input.session_id) # process_game_turn now expects AgentInput and returns str
+        raw_result_str = await process_game_turn(game_context, input.session_id)
+        
+        # DEBUG: Log raw result from agent
+        print(f"{'='*60}")
+        print(f"RAW AGENT RESPONSE (length: {len(raw_result_str)})")
+        print(f"Preview: {raw_result_str[:300]}...")
+        print(f"{'='*60}\n")
         
         # Parse the JSON string result
         result_dict = parse_json_block(raw_result_str)
         
+        # DEBUG: Log parsed result
+        print(f"{'='*60}")
+        print(f"PARSED JSON KEYS: {list(result_dict.keys())}")
+        print(f"scene_tag: {result_dict.get('scene_tag', 'MISSING')}")
+        print(f"location: {result_dict.get('location', 'MISSING')}")
+        print(f"world: {result_dict.get('world', 'MISSING')}")
+        print(f"{'='*60}\n")
+        
         # Validate and fix the response
         result_dict = validate_and_fix_response(result_dict)
+        
+        # DEBUG: Log validated result
+        print(f"{'='*60}")
+        print(f"VALIDATED RESPONSE STRUCTURE")
+        print(f"scene_tag: {result_dict.get('scene_tag', 'MISSING')}")
+        print(f"location: {result_dict.get('location', 'MISSING')}")
+        print(f"world: {result_dict.get('world', 'MISSING')}")
+        print(f"narration_text length: {len(result_dict.get('narration_text', ''))}")
+        print(f"characters count: {len(result_dict.get('characters', []))}")
+        print(f"options count: {len(result_dict.get('options', []))}")
+        print(f"{'='*60}\n")
         
         with open('debug_output.json', 'w') as f:
             json.dump(result_dict, f, indent=2)

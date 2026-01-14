@@ -33,7 +33,7 @@ try:
 )
     
     groq_model = Groq(
-        "gemma2-9b-it",
+        "llama-3.1-8b-instant",
         api_key=os.getenv("GROQ_API_KEY")
     )
 except Exception as e:
@@ -205,7 +205,7 @@ OUTPUT: Rich dialogue array with substantial story progression and character dev
 
 orchestrator_agent = Agent(
     name="orchestrator_agent",
-    model=gemini_model,
+    model=groq_model,
     tools=[
         narrative_tool, world_tool, npc_agent, threat_agent, quest_agent,
         emotion_agent, event_agent, item_agent, structure_agent, lore_agent,
@@ -444,6 +444,7 @@ async def process_game_turn(player_input: AgentInput, user_id: str) -> str: # Ch
     """Process player turn and return game response"""
     try:
         final_response_str = orchestrator_agent.run(player_input, user_id=user_id)
+        print(final_response_str)
         # Return the JSON string directly as per user's request
         return final_response_str.content
     except Exception as e:
