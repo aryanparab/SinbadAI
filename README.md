@@ -7,7 +7,7 @@ Shadow Council is an interactive narrative-driven game where you can enter ANY u
 **🏆 Winner - "Most Tech Savvy" at USC Claude Hackathon 2024**
 
 Play here: https://sinbad-ai.vercel.app/
-Watch here: https://tinyurl.com/39cncmda
+Watch here: [https://tinyurl.com/39cncmda](https://drive.google.com/file/d/1DvfKYy1CW_5bwp3LDs-Z5JQiBmZ2LoP4/view?usp=sharing)
 
 ---
 
