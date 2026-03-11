@@ -31,11 +31,7 @@ try:
         "gemini-1.5-flash",
         api_key=os.getenv("GEMINI_API_KEY")
     )
-    # Fixed: This was incorrectly set to Groq instead of Gemini
-    gemini_model = Groq(  # <- This was wrong
-        "gemma2-9b-it",
-        api_key=os.getenv("GROQ_API_KEY")
-    )
+ 
     groq_model = Groq(
         "gemma2-9b-it",
         api_key=os.getenv("GROQ_API_KEY")
@@ -57,7 +53,7 @@ except Exception as e:
 # 📖 Narrative Tool Agent
 narrative_tool = Agent(
     name="narrative_agent",
-    model=gemini_model,
+    model=groq_model,
     instructions="""
 You are the master storyteller responsible for crafting immersive, sensory-rich narration text.
 
@@ -198,7 +194,7 @@ Provide environmental updates:
 # 🧍 NPC Generator Tool Agent
 threat_agent = Agent(
     name="threat_agent",
-    model=gemini_model,
+    model=groq_model,
     instructions="""
 You are the tension architect, responsible for creating and managing dynamic threats.
 
@@ -651,7 +647,7 @@ Provide dialogue content:
 # Create orchestrator agent that uses tools and synthesizes output
 orchestrator_agent = Agent(
     name="orchestrator_agent",
-    model=gemini_model,
+    model=groq_model,
     tools=[
         structure_agent,     # Decides pacing, whether it's climax/build-up/sidequest etc.
     lore_agent,          # Builds world-consistent logic & constraints for agents to follow

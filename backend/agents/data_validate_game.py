@@ -13,12 +13,32 @@ def validate_and_fix_response(result_dict):
     # HELPER FUNCTIONS
     # =====================================================
     
+    # Field-specific fallbacks used when AI returns nothing or too-short content
+    _field_fallbacks = {
+        'narration': (
+            "The world holds its breath. Sinbad pauses, scanning the shadows around him. "
+            "Something has shifted — the air feels heavier, charged with possibility and danger. "
+            "Every choice from this moment forward will ripple outward in ways he cannot yet see. "
+            "He steadies himself and considers what to do next."
+        ),
+        'history entry': (
+            "Sinbad navigated a tense moment, making a choice that will shape the story ahead."
+        ),
+    }
+
     def validate_string_length(text, min_len, max_len, field_name):
         """Ensure string length is within bounds"""
         if not text or len(text) < min_len:
-            return f"Default {field_name} content to meet minimum length requirement."
+            fallback = _field_fallbacks.get(field_name, f"The scene continues as {field_name} unfolds.")
+            print(f"⚠️ {field_name} too short ({len(text) if text else 0} chars), using fallback")
+            return fallback
         if len(text) > max_len:
-            return text[:max_len-3] + "..."
+            # Find the last sentence boundary before the limit to avoid mid-sentence cuts
+            truncated = text[:max_len]
+            last_period = max(truncated.rfind('. '), truncated.rfind('! '), truncated.rfind('? '))
+            if last_period > max_len * 0.7:  # Only use sentence boundary if it's not too short
+                return truncated[:last_period + 1]
+            return truncated[:max_len-1]
         return text
     
     def validate_numeric_range(value, min_val, max_val, default_val):
@@ -72,9 +92,39 @@ def validate_and_fix_response(result_dict):
         print(f"⚠️ Added default narration_text")
     
     # 5. dialogue: List[DialogueLine]
+    # Required fields: speaker(str), text(str), emotion(str), is_internal_thought(bool), audible_to(List[str])
     if 'dialogue' not in result_dict or not isinstance(result_dict['dialogue'], list):
         result_dict['dialogue'] = []
         print(f"⚠️ Added default dialogue: []")
+    else:
+        fixed_dialogue = []
+        for line in result_dict['dialogue']:
+            if not isinstance(line, dict):
+                continue  # drop entirely malformed entries
+            if 'speaker' not in line or not isinstance(line['speaker'], str):
+                line['speaker'] = "Unknown"
+                print(f"⚠️ Added default dialogue[].speaker")
+            if 'text' not in line or not isinstance(line['text'], str):
+                line['text'] = ""
+                print(f"⚠️ Added default dialogue[].text")
+            if 'emotion' not in line or not isinstance(line['emotion'], str):
+                line['emotion'] = "neutral"
+                print(f"⚠️ Added default dialogue[].emotion")
+            # is_internal_thought must be bool
+            if 'is_internal_thought' not in line:
+                line['is_internal_thought'] = False
+                print(f"⚠️ Added default dialogue[].is_internal_thought")
+            elif not isinstance(line['is_internal_thought'], bool):
+                line['is_internal_thought'] = bool(line['is_internal_thought'])
+                print(f"⚠️ Coerced dialogue[].is_internal_thought to bool")
+            # audible_to must be List[str]
+            if 'audible_to' not in line or not isinstance(line['audible_to'], list):
+                line['audible_to'] = []
+                print(f"⚠️ Added default dialogue[].audible_to")
+            else:
+                line['audible_to'] = [str(x) for x in line['audible_to']]
+            fixed_dialogue.append(line)
+        result_dict['dialogue'] = fixed_dialogue
     
     # 6. characters: List[Character]
     if 'characters' not in result_dict or not isinstance(result_dict['characters'], list):
@@ -95,7 +145,7 @@ def validate_and_fix_response(result_dict):
                 char.get('trust_level', 0), -10, 10, 0
             )
             
-            # Required character fields
+            # Required character fields — check both missing AND None/empty values
             required_char_fields = {
                 'id': 'unknown',
                 'name': 'Unknown',
@@ -107,9 +157,19 @@ def validate_and_fix_response(result_dict):
                 'knowledge_flags': {}
             }
             for field, default in required_char_fields.items():
-                if field not in char:
+                # Apply default if key is missing OR value is None/empty string
+                current = char.get(field)
+                needs_default = (
+                    field not in char
+                    or current is None
+                    or (isinstance(default, str) and current == "")
+                    or (isinstance(default, list) and not isinstance(current, list))
+                    or (isinstance(default, dict) and not isinstance(current, dict))
+                    or (isinstance(default, bool) and not isinstance(current, bool))
+                )
+                if needs_default:
                     char[field] = default
-                    print(f"⚠️ Added default {field} to character")
+                    print(f"⚠️ Added/fixed default {field} to character (was {current!r})")
             
             # Optional character fields - set to null if empty
             optional_char_fields = ['backstory', 'faction', 'skills', 'equipment']
@@ -123,12 +183,13 @@ def validate_and_fix_response(result_dict):
         print(f"⚠️ Added default options")
     else:
         # Ensure options is a list of strings
-        result_dict['options'] = [str(opt) for opt in result_dict['options']]
+        result_dict['options'] = [str(opt) for opt in result_dict['options'] if opt]
         if len(result_dict['options']) < 2:
             result_dict['options'].extend(["Continue", "Look around"][:2-len(result_dict['options'])])
+            print(f"⚠️ Padded options to minimum 2: {result_dict['options']}")
         elif len(result_dict['options']) > 6:
             result_dict['options'] = result_dict['options'][:6]
-        print(f"⚠️ Fixed options count: {len(result_dict['options'])}")
+            print(f"⚠️ Trimmed options to maximum 6")
     
     # =====================================================
     # 8. game_state: GameState (COMPLETE VALIDATION)
@@ -165,7 +226,26 @@ def validate_and_fix_response(result_dict):
         elif not isinstance(gs[field], field_type):
             gs[field] = default
             print(f"⚠️ Fixed game_state.{field} type")
-    
+
+    # Coerce List[str] game_state fields — AI sometimes returns dicts or non-strings inside
+    for list_str_field in ['revealed_secrets', 'completed_objectives', 'failed_objectives', 'major_events']:
+        if isinstance(gs.get(list_str_field), list):
+            coerced = []
+            for item in gs[list_str_field]:
+                if isinstance(item, str):
+                    coerced.append(item)
+                elif isinstance(item, dict):
+                    # Pull the most descriptive value from the dict, fallback to str(dict)
+                    value = (
+                        item.get('description') or item.get('event') or
+                        item.get('name') or item.get('text') or str(item)
+                    )
+                    coerced.append(str(value))
+                    print(f"⚠️ Coerced dict in game_state.{list_str_field} to string")
+                else:
+                    coerced.append(str(item))
+            gs[list_str_field] = coerced
+
     # Handle field name mappings (AI sometimes uses wrong field names)
     # player_reputation -> reputation
     if 'player_reputation' in gs and 'reputation' not in gs:
@@ -178,7 +258,25 @@ def validate_and_fix_response(result_dict):
         gs['major_events'] = gs['major_story_events']
         del gs['major_story_events']
         print(f"⚠️ Mapped major_story_events -> major_events")
-    
+
+    # Coerce location_flags values to bool (schema: Dict[str, bool])
+    # AI sometimes puts numeric or non-boolean values in here (e.g. safety_level: 2)
+    if 'location_flags' in gs and isinstance(gs['location_flags'], dict):
+        fixed_location_flags = {}
+        for k, v in gs['location_flags'].items():
+            if isinstance(v, bool):
+                fixed_location_flags[k] = v
+            elif isinstance(v, (int, float)):
+                fixed_location_flags[k] = bool(v)
+                print(f"⚠️ Coerced location_flags['{k}'] from {type(v).__name__} {v} to bool")
+            elif isinstance(v, str):
+                fixed_location_flags[k] = v.lower() in ('true', '1', 'yes')
+                print(f"⚠️ Coerced location_flags['{k}'] from str '{v}' to bool")
+            else:
+                fixed_location_flags[k] = False
+                print(f"⚠️ Defaulted location_flags['{k}'] to False (was {type(v).__name__})")
+        gs['location_flags'] = fixed_location_flags
+
     # GameState nested: environmental_conditions
     if 'environmental_conditions' not in gs or not isinstance(gs['environmental_conditions'], dict):
         gs['environmental_conditions'] = {
@@ -231,31 +329,55 @@ def validate_and_fix_response(result_dict):
         gs['active_objectives'] = []
         print(f"⚠️ Added default game_state.active_objectives: []")
     else:
+        fixed_active_objectives = []
         for obj in gs['active_objectives']:
-            if not isinstance(obj, dict):
-                obj = {}
-                continue
-            
-            obj['progress'] = validate_numeric_range(obj.get('progress', 0), 0, 100, 0)
-            obj['escalation_level'] = validate_numeric_range(obj.get('escalation_level', 1), 1, 10, 1)
-            
-            # Required objective fields
-            if 'id' not in obj:
-                obj['id'] = f"obj_{datetime.now().strftime('%H%M%S')}"
-            if 'description' not in obj:
-                obj['description'] = "Complete this objective"
-            if 'quest_type' not in obj:
-                obj['quest_type'] = "main"
-            if 'completed' not in obj:
-                obj['completed'] = False
-            if 'involves_npcs' not in obj:
-                obj['involves_npcs'] = []
-            
-            # Optional objective fields
-            if 'rewards' in obj and (not isinstance(obj['rewards'], list) or obj['rewards'] == []):
-                obj['rewards'] = None
-            if obj.get('time_limit') in ["", "None"]:
-                obj['time_limit'] = None
+            if isinstance(obj, str):
+                # AI returned a plain string instead of a QuestObjective dict — coerce it
+                obj = {
+                    "id": f"obj_{datetime.now().strftime('%H%M%S%f')}",
+                    "description": obj,
+                    "quest_type": "main",
+                    "completed": False,
+                    "involves_npcs": [],
+                    "progress": 0,
+                    "escalation_level": 1
+                }
+                print(f"⚠️ Converted string active_objective to QuestObjective dict")
+            elif not isinstance(obj, dict):
+                obj = {
+                    "id": f"obj_{datetime.now().strftime('%H%M%S%f')}",
+                    "description": "Complete this objective",
+                    "quest_type": "main",
+                    "completed": False,
+                    "involves_npcs": [],
+                    "progress": 0,
+                    "escalation_level": 1
+                }
+                print(f"⚠️ Replaced invalid active_objective with default QuestObjective dict")
+            else:
+                obj['progress'] = validate_numeric_range(obj.get('progress', 0), 0, 100, 0)
+                obj['escalation_level'] = validate_numeric_range(obj.get('escalation_level', 1), 1, 10, 1)
+
+                # Required objective fields
+                if 'id' not in obj:
+                    obj['id'] = f"obj_{datetime.now().strftime('%H%M%S%f')}"
+                if 'description' not in obj:
+                    obj['description'] = "Complete this objective"
+                if 'quest_type' not in obj:
+                    obj['quest_type'] = "main"
+                if 'completed' not in obj:
+                    obj['completed'] = False
+                if 'involves_npcs' not in obj:
+                    obj['involves_npcs'] = []
+
+                # Optional objective fields
+                if 'rewards' in obj and (not isinstance(obj['rewards'], list) or obj['rewards'] == []):
+                    obj['rewards'] = None
+                if obj.get('time_limit') in ["", "None"]:
+                    obj['time_limit'] = None
+
+            fixed_active_objectives.append(obj)
+        gs['active_objectives'] = fixed_active_objectives
     
     # =====================================================
     # 9. inventory_changes: InventoryChanges
@@ -273,6 +395,29 @@ def validate_and_fix_response(result_dict):
         for field in ['added_items', 'removed_items', 'modified_items']:
             if field not in ic or not isinstance(ic[field], list):
                 ic[field] = []
+            else:
+                # Validate each Item inside these lists (same rules as current_inventory)
+                fixed_items = []
+                for item in ic[field]:
+                    if isinstance(item, str):
+                        item = {
+                            "name": item, "quantity": 1,
+                            "description": f"Item: {item}",
+                            "durability": 100, "item_type": "misc", "properties": {}
+                        }
+                    elif not isinstance(item, dict):
+                        continue
+                    else:
+                        item.setdefault("name", "unknown_item")
+                        item.setdefault("quantity", 1)
+                        item.setdefault("description", f"No description for {item.get('name', 'unknown')}")
+                        item["durability"] = validate_numeric_range(item.get("durability", 100), 0, 100, 100)
+                        item.setdefault("item_type", "misc")
+                        item.setdefault("properties", {})
+                        if not isinstance(item["properties"], dict):
+                            item["properties"] = {}
+                    fixed_items.append(item)
+                ic[field] = fixed_items
     
     # =====================================================
     # 10. current_inventory: List[Item]
@@ -364,26 +509,49 @@ def validate_and_fix_response(result_dict):
         result_dict['new_objectives'] = []
         print(f"⚠️ Added default new_objectives: []")
     else:
+        fixed_new_objectives = []
         for obj in result_dict['new_objectives']:
-            if not isinstance(obj, dict):
-                obj = {}
-                continue
-            obj['progress'] = validate_numeric_range(obj.get('progress', 0), 0, 100, 0)
-            obj['escalation_level'] = validate_numeric_range(obj.get('escalation_level', 1), 1, 10, 1)
-            if 'id' not in obj:
-                obj['id'] = f"obj_{datetime.now().strftime('%H%M%S')}"
-            if 'description' not in obj:
-                obj['description'] = "Complete this objective"
-            if 'quest_type' not in obj:
-                obj['quest_type'] = "main"
-            if 'completed' not in obj:
-                obj['completed'] = False
-            if 'involves_npcs' not in obj:
-                obj['involves_npcs'] = []
-            if 'rewards' in obj and (not isinstance(obj['rewards'], list) or obj['rewards'] == []):
-                obj['rewards'] = None
-            if obj.get('time_limit') in ["", "None"]:
-                obj['time_limit'] = None
+            if isinstance(obj, str):
+                obj = {
+                    "id": f"obj_{datetime.now().strftime('%H%M%S%f')}",
+                    "description": obj,
+                    "quest_type": "main",
+                    "completed": False,
+                    "involves_npcs": [],
+                    "progress": 0,
+                    "escalation_level": 1
+                }
+                print(f"⚠️ Converted string new_objective to QuestObjective dict")
+            elif not isinstance(obj, dict):
+                obj = {
+                    "id": f"obj_{datetime.now().strftime('%H%M%S%f')}",
+                    "description": "Complete this objective",
+                    "quest_type": "main",
+                    "completed": False,
+                    "involves_npcs": [],
+                    "progress": 0,
+                    "escalation_level": 1
+                }
+                print(f"⚠️ Replaced invalid new_objective with default QuestObjective dict")
+            else:
+                obj['progress'] = validate_numeric_range(obj.get('progress', 0), 0, 100, 0)
+                obj['escalation_level'] = validate_numeric_range(obj.get('escalation_level', 1), 1, 10, 1)
+                if 'id' not in obj:
+                    obj['id'] = f"obj_{datetime.now().strftime('%H%M%S%f')}"
+                if 'description' not in obj:
+                    obj['description'] = "Complete this objective"
+                if 'quest_type' not in obj:
+                    obj['quest_type'] = "main"
+                if 'completed' not in obj:
+                    obj['completed'] = False
+                if 'involves_npcs' not in obj:
+                    obj['involves_npcs'] = []
+                if 'rewards' in obj and (not isinstance(obj['rewards'], list) or obj['rewards'] == []):
+                    obj['rewards'] = None
+                if obj.get('time_limit') in ["", "None"]:
+                    obj['time_limit'] = None
+            fixed_new_objectives.append(obj)
+        result_dict['new_objectives'] = fixed_new_objectives
     
     # =====================================================
     # 16. completed_objectives_this_scene: List[str]
@@ -401,12 +569,33 @@ def validate_and_fix_response(result_dict):
         result_dict['interactive_elements'] = []
         print(f"⚠️ Added default interactive_elements: []")
     else:
+        fixed_elements = []
         for elem in result_dict['interactive_elements']:
             if not isinstance(elem, dict):
-                elem = {}
-                continue
+                continue  # drop entirely malformed entries
+            # Required fields: id, name, description, interaction_types, requires_items,
+            #                  unlocks_options, options, potential_outcomes
+            if 'id' not in elem or not isinstance(elem['id'], str):
+                elem['id'] = f"elem_{datetime.now().strftime('%H%M%S%f')}"
+            if 'name' not in elem or not isinstance(elem['name'], str):
+                elem['name'] = "Unknown Element"
+            if 'description' not in elem or not isinstance(elem['description'], str):
+                elem['description'] = "An interactive element."
+            for list_field in ['interaction_types', 'requires_items', 'unlocks_options', 'options']:
+                if list_field not in elem or not isinstance(elem[list_field], list):
+                    elem[list_field] = []
+                else:
+                    elem[list_field] = [str(x) for x in elem[list_field]]
+            if 'potential_outcomes' not in elem or not isinstance(elem['potential_outcomes'], dict):
+                elem['potential_outcomes'] = {}
+            else:
+                # Values must be strings
+                elem['potential_outcomes'] = {k: str(v) for k, v in elem['potential_outcomes'].items()}
+            # Optional: side_quest_trigger — normalise empty values to None
             if elem.get('side_quest_trigger') in [{}, "", None]:
                 elem['side_quest_trigger'] = None
+            fixed_elements.append(elem)
+        result_dict['interactive_elements'] = fixed_elements
     
     # =====================================================
     # 18. environmental_discoveries: List[EnvironmentalDiscovery]
@@ -415,6 +604,24 @@ def validate_and_fix_response(result_dict):
     if 'environmental_discoveries' not in result_dict or not isinstance(result_dict['environmental_discoveries'], list):
         result_dict['environmental_discoveries'] = []
         print(f"⚠️ Added default environmental_discoveries: []")
+    else:
+        fixed_discoveries = []
+        for disc in result_dict['environmental_discoveries']:
+            if not isinstance(disc, dict):
+                continue
+            # Required fields: name(str), description(str), significance(str), unlocks_content(List[str])
+            if 'name' not in disc or not isinstance(disc['name'], str):
+                disc['name'] = "Unknown Discovery"
+            if 'description' not in disc or not isinstance(disc['description'], str):
+                disc['description'] = "Something was discovered."
+            if 'significance' not in disc or not isinstance(disc['significance'], str):
+                disc['significance'] = "minor"
+            if 'unlocks_content' not in disc or not isinstance(disc['unlocks_content'], list):
+                disc['unlocks_content'] = []
+            else:
+                disc['unlocks_content'] = [str(x) for x in disc['unlocks_content']]
+            fixed_discoveries.append(disc)
+        result_dict['environmental_discoveries'] = fixed_discoveries
     
     # =====================================================
     # 19. threat_updates: List[ThreatUpdate]
@@ -424,13 +631,35 @@ def validate_and_fix_response(result_dict):
         result_dict['threat_updates'] = []
         print(f"⚠️ Added default threat_updates: []")
     else:
+        fixed_threats = []
         for threat in result_dict['threat_updates']:
             if not isinstance(threat, dict):
                 threat = {}
-                continue
+                print(f"⚠️ Replaced invalid threat_update entry with empty dict")
+
             threat['escalation_level'] = validate_numeric_range(
                 threat.get('escalation_level', 1), 1, 10, 1
             )
+
+            # Required ThreatUpdate fields
+            if 'threat_id' not in threat or not threat['threat_id']:
+                threat['threat_id'] = f"threat_{datetime.now().strftime('%H%M%S%f')}"
+                print(f"⚠️ Added default threat_updates[].threat_id")
+            if 'threat_name' not in threat or not threat['threat_name']:
+                threat['threat_name'] = "Unknown Threat"
+                print(f"⚠️ Added default threat_updates[].threat_name")
+            if 'immediate_danger' not in threat or not isinstance(threat['immediate_danger'], bool):
+                threat['immediate_danger'] = False
+                print(f"⚠️ Added default threat_updates[].immediate_danger")
+            if 'resolution_methods' not in threat or not isinstance(threat['resolution_methods'], list):
+                threat['resolution_methods'] = []
+                print(f"⚠️ Added default threat_updates[].resolution_methods")
+            if 'affects_npcs' not in threat or not isinstance(threat['affects_npcs'], list):
+                threat['affects_npcs'] = []
+                print(f"⚠️ Added default threat_updates[].affects_npcs")
+
+            fixed_threats.append(threat)
+        result_dict['threat_updates'] = fixed_threats
     
     # =====================================================
     # 20. ambient_events: List[AmbientEvent]
@@ -439,6 +668,27 @@ def validate_and_fix_response(result_dict):
     if 'ambient_events' not in result_dict or not isinstance(result_dict['ambient_events'], list):
         result_dict['ambient_events'] = []
         print(f"⚠️ Added default ambient_events: []")
+    else:
+        fixed_ambient = []
+        for event in result_dict['ambient_events']:
+            if not isinstance(event, dict):
+                continue
+            # Required fields: event_type(str), description(str), affects_mood(bool), creates_opportunities(List[str])
+            if 'event_type' not in event or not isinstance(event['event_type'], str):
+                event['event_type'] = "ambient"
+            if 'description' not in event or not isinstance(event['description'], str):
+                event['description'] = "Something happens in the environment."
+            if 'affects_mood' not in event:
+                event['affects_mood'] = False
+            elif not isinstance(event['affects_mood'], bool):
+                event['affects_mood'] = bool(event['affects_mood'])
+                print(f"⚠️ Coerced ambient_events[].affects_mood to bool")
+            if 'creates_opportunities' not in event or not isinstance(event['creates_opportunities'], list):
+                event['creates_opportunities'] = []
+            else:
+                event['creates_opportunities'] = [str(x) for x in event['creates_opportunities']]
+            fixed_ambient.append(event)
+        result_dict['ambient_events'] = fixed_ambient
     
     # =====================================================
     # 21. discovered_lore: List[LoreEntry]
@@ -449,17 +699,33 @@ def validate_and_fix_response(result_dict):
         print(f"⚠️ Added default discovered_lore: []")
     else:
         valid_categories = ['history', 'character', 'location', 'faction', 'event', 'artifact']
+        fixed_lore = []
         for lore in result_dict['discovered_lore']:
             if not isinstance(lore, dict):
-                lore = {}
                 continue
+            # Required: id, title, content, category, discovered_at, related_entries, importance_level
+            if 'id' not in lore or not isinstance(lore['id'], str) or not lore['id']:
+                lore['id'] = f"lore_{datetime.now().strftime('%H%M%S%f')}"
+                print(f"⚠️ Added default discovered_lore[].id")
+            if 'title' not in lore or not isinstance(lore['title'], str) or not lore['title']:
+                lore['title'] = "Unknown Lore"
+                print(f"⚠️ Added default discovered_lore[].title")
+            if 'content' not in lore or not isinstance(lore['content'], str) or not lore['content']:
+                lore['content'] = lore.get('title', "Unknown lore entry.")
+                print(f"⚠️ Added default discovered_lore[].content")
             if 'category' not in lore or lore['category'] not in valid_categories:
                 lore['category'] = 'history'
             if 'discovered_at' not in lore or not lore['discovered_at']:
                 lore['discovered_at'] = datetime.now().isoformat() + 'Z'
+            if 'related_entries' not in lore or not isinstance(lore['related_entries'], list):
+                lore['related_entries'] = []
+            else:
+                lore['related_entries'] = [str(x) for x in lore['related_entries']]
             lore['importance_level'] = validate_numeric_range(
                 lore.get('importance_level', 1), 1, 10, 1
             )
+            fixed_lore.append(lore)
+        result_dict['discovered_lore'] = fixed_lore
     
     # =====================================================
     # 22. world_info: WorldInfo (CRITICAL - MUST BE OBJECT, NOT STRING)
@@ -493,9 +759,35 @@ def validate_and_fix_response(result_dict):
         print(f"⚠️ Converted string world_info to object")
     elif isinstance(result_dict['world_info'], dict):
         wi = result_dict['world_info']
-        # Fix historical_timeline if it's a dict
+        # Fix historical_timeline if it's a dict (wrap it in a list)
         if 'historical_timeline' in wi and isinstance(wi['historical_timeline'], dict):
             wi['historical_timeline'] = [wi['historical_timeline']]
+            print(f"⚠️ Wrapped dict historical_timeline in a list")
+        # Coerce historical_timeline inner values to List[str]
+        # Schema: List[Dict[str, List[str]]] — each dict's values must be lists of strings
+        if 'historical_timeline' in wi and isinstance(wi['historical_timeline'], list):
+            fixed_timeline = []
+            for entry in wi['historical_timeline']:
+                if not isinstance(entry, dict):
+                    continue
+                fixed_entry = {}
+                for k, v in entry.items():
+                    if isinstance(v, list):
+                        # Ensure every element is a string
+                        fixed_entry[k] = [
+                            str(item) if not isinstance(item, str) else item
+                            for item in v
+                        ]
+                    elif isinstance(v, dict):
+                        # Flatten dict → list of "key: value" strings
+                        fixed_entry[k] = [f"{dk}: {dv}" for dk, dv in v.items()]
+                        print(f"⚠️ Flattened dict in historical_timeline['{k}'] to List[str]")
+                    elif isinstance(v, str):
+                        fixed_entry[k] = [v]
+                    else:
+                        fixed_entry[k] = [str(v)]
+                fixed_timeline.append(fixed_entry)
+            wi['historical_timeline'] = fixed_timeline
         # Ensure all required WorldInfo fields exist
         world_info_defaults = {
             "name": "Unknown World",

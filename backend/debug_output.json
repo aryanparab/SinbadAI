@@ -1,138 +1,133 @@
 {
-  "scene_tag": "confrontation_with_stranger",
+  "scene_tag": "fight_zombies_successfully",
   "location": "starting_area",
-  "world": "The walking dead",
-  "narration_text": "As I approach the other NPC, I can't help but feel a sense of caution. We're in a post-apocalyptic world, after all. I decide to attack, just in case they're a threat. The other NPC quickly becomes defensive and retaliates with a swing of their fist. I dodge out of the way just in time, but I know this isn't going to end well. I charge at the other NPC, prepared to fight.",
+  "world": "The Walking Dead",
+  "narration_text": "As you get ready to face the zombies, you feel a mix of fear and adrenaline. You've managed to defend your supplies and escape through exit 1 before, but this time you're prepared for the challenge ahead. The undead are closing in, their groans and moans growing louder with every passing moment. You grip your basic supplies and first aid kit tightly, ready to take on the horde. Your heart is racing as you prepare to engage in the most crucial battle of your survival so far.",
   "dialogue": [
     {
-      "speaker": "other npc",
-      "text": "Back off, stranger!",
-      "emotion": "angry",
-      "is_internal_thought": false,
-      "audible_to": [
-        "Sarah",
-        "player",
-        "other npc"
-      ]
-    },
-    {
-      "speaker": "player",
-      "text": "I'm not afraid of you.",
+      "speaker": "Sinbad",
+      "text": "Alright, zombies, let's settle this once and for all.",
       "emotion": "confident",
       "is_internal_thought": false,
       "audible_to": [
-        "Sarah",
-        "player",
-        "other npc"
+        "Sinbad"
+      ]
+    },
+    {
+      "speaker": "Sinbad",
+      "text": "I've got my supplies, I've got my wits, and I've got a plan. It's time to take down these unwanted visitors.",
+      "emotion": "determined",
+      "is_internal_thought": false,
+      "audible_to": [
+        "Sinbad"
       ]
     }
   ],
   "characters": [
     {
-      "id": "Sinbad",
+      "id": "sinbad",
       "name": "Sinbad",
-      "avatar": "defaultavatar",
+      "avatar": "sinbad_avatar",
       "interactable": true,
       "relationship_level": 0,
-      "current_mood": "cautious",
-      "trust_level": -5,
+      "current_mood": "tense",
+      "trust_level": 0,
       "memories": [
-        "spoke_with_Sarah"
+        "escapes zombie horde in starting area with minimal damage",
+        "discovers zombies exist"
       ],
       "personal_objectives": [
-        "find_safety"
+        "survive in post-apocalyptic world"
       ],
-      "knowledge_flags": {},
-      "backstory": "Traveler through the post-apocalyptic world.",
+      "knowledge_flags": {
+        "zombies_are_real": true
+      },
+      "backstory": "Sinbad is a young survivor trying to make his way in a world overrun by the undead.",
       "faction": null,
       "skills": null,
-      "equipment": null
-    },
-    {
-      "id": "other_npc",
-      "name": "Other NPC",
-      "avatar": "unknown_avatar",
-      "interactable": true,
-      "relationship_level": -5,
-      "current_mood": "angry",
-      "trust_level": -10,
-      "memories": [],
-      "personal_objectives": [],
-      "knowledge_flags": {},
-      "backstory": "Unkown",
-      "faction": null,
-      "skills": null,
-      "equipment": null
-    },
-    {
-      "id": "Sarah",
-      "name": "Sarah",
-      "avatar": "defaultavatar",
-      "interactable": false,
-      "relationship_level": 5,
-      "current_mood": "concerned",
-      "trust_level": 5,
-      "memories": [
-        "spoke_with_Sinbad"
-      ],
-      "personal_objectives": [
-        "find_friends"
-      ],
-      "knowledge_flags": {},
-      "backstory": "One of the survivors in this post-apocalyptic world.",
-      "faction": null,
-      "skills": null,
-      "equipment": null
+      "equipment": [
+        "basic supplies",
+        "first aid kit"
+      ]
     }
   ],
   "options": [
-    "Talk to the other NPC",
-    "Attack the other NPC again"
+    "try to run away",
+    "defend your position"
   ],
   "game_state": {
     "relationships": {
-      "other_npc": -10
+      "sinbad": 0
     },
-    "revealed_secrets": [],
-    "major_story_events": [
-      "confrontation_with_stranger"
+    "revealed_secrets": [
+      "zombies_exist"
     ],
-    "active_objectives": [],
     "completed_objectives": [],
+    "failed_objectives": [],
+    "active_objectives": [
+      {
+        "id": "survive_post_apocalyptic_world",
+        "description": "Survive in a post-apocalyptic world",
+        "quest_type": "survival",
+        "completed": false,
+        "involves_npcs": [],
+        "progress": 0,
+        "escalation_level": 1,
+        "rewards": null,
+        "time_limit": null
+      }
+    ],
+    "location_flags": {
+      "starting_area": true
+    },
     "story_flags": {
-      "settlement_discovered": false
+      "zombie_apocalypse": true
     },
-    "player_reputation": {
-      "aggressive": true
-    },
+    "reputation": {},
+    "major_events": [],
     "environmental_conditions": {
-      "weather": "clear",
-      "visibility": "normal",
-      "temperature": "comfortable",
+      "weather": "sunny",
+      "visibility": "good",
+      "temperature": "hot",
+      "hazard": 4,
       "hazard_level": 0
     },
     "resource_availability": {
-      "food": "scarce",
-      "water": "scarce",
-      "medical_supplies": "scarce",
-      "shelter": "scarce",
+      "food": "low",
+      "water": "moderate",
+      "medical": "scarce",
+      "shelter": "moderate",
       "fuel": "scarce",
-      "tools": "scarce",
+      "tools": "low",
+      "medical_supplies": "scarce",
       "shelter_materials": "moderate"
-    },
-    "failed_objectives": [],
-    "major_events": [],
-    "location_flags": {},
-    "reputation": {}
+    }
   },
   "inventory_changes": {
     "added_items": [],
     "removed_items": [],
     "modified_items": []
   },
-  "current_inventory": [],
-  "mood_atmosphere": "intense",
-  "history_entry": "I attacked the other NPC, but they retaliated. We're in the middle of a heated confrontation.",
+  "current_inventory": [
+    {
+      "name": "basic supplies",
+      "quantity": 1,
+      "description": "A mysterious item named basic supplies.",
+      "durability": 100,
+      "item_type": "misc",
+      "properties": {}
+    },
+    {
+      "name": "first aid kit",
+      "quantity": 1,
+      "description": "A mysterious item named first aid kit.",
+      "durability": 100,
+      "item_type": "misc",
+      "properties": {}
+    }
+  ],
+  "mood_atmosphere": "tense",
+  "history_entry": "You successfully defended your supplies against the zombie horde in the starting area, suffering minor injuries but managing to emerge victorious. Your supplies are safe for now, but you know there are more zombies out there waiting to be dealt with.",
   "relationship_changes": {},
   "new_secrets": [],
   "new_objectives": [],
@@ -144,33 +139,25 @@
   "discovered_lore": [],
   "world_info": {
     "name": "The Walking Dead",
-    "theme": "adventure",
-    "description": "A world ravaged by a zombie outbreak.",
+    "theme": "adventure_post_apocalypse",
+    "description": "Survive in a world overrun by zombies.",
     "key_locations": [
       "starting_area"
     ],
-    "dominant_factions": [
-      "survivors"
-    ],
+    "dominant_factions": [],
     "major_threats": [
-      "zombies",
-      "other NPCs"
+      "zombies"
     ],
     "cultural_notes": [],
     "historical_timeline": []
   },
   "location_details": {
     "exits": [
-      "north",
-      "south",
-      "east",
-      "west"
+      "exit2",
+      "exit3"
     ],
     "hidden_areas": [],
-    "resource_nodes": [
-      "food",
-      "water"
-    ],
+    "resource_nodes": [],
     "safety_level": 5
   }
 }

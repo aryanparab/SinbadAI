@@ -5,11 +5,22 @@ import os
 
 app = FastAPI(title="Sinbad RPG Backend")
 
-# ⭐ Add CORS middleware for frontend to connect
+# CORS — set ALLOWED_ORIGINS env var to comma-separated list of allowed frontend origins.
+# e.g. ALLOWED_ORIGINS=https://yourapp.vercel.app,https://www.yourdomain.com
+# Falls back to wildcard only in non-production so local dev still works.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "")
+if _raw_origins:
+    allow_origins = [o.strip() for o in _raw_origins.split(",") if o.strip()]
+    allow_credentials = True
+else:
+    # No origins configured — open wildcard (dev only; credentials disabled per CORS spec)
+    allow_origins = ["*"]
+    allow_credentials = False
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # In production, specify your Vercel domain
-    allow_credentials=True,
+    allow_origins=allow_origins,
+    allow_credentials=allow_credentials,
     allow_methods=["*"],
     allow_headers=["*"],
 )

@@ -8,7 +8,10 @@ from dotenv import load_dotenv
 import os
 import asyncio
 import json
+import logging
 from data.storage import get_memory_db
+
+logger = logging.getLogger(__name__)
 
 # Import Pydantic models
 from models.schemas import (
@@ -37,21 +40,21 @@ try:
         api_key=os.getenv("GROQ_API_KEY")
     )
 except Exception as e:
-    print(f"Error initializing models: {e}")
-    exit(1)
+    logger.critical(f"Failed to initialize AI models: {e}", exc_info=True)
+    raise RuntimeError(f"AI model initialization failed: {e}") from e
 
 # Setup Memory
 # memory = Memory(
 #     model=gemini_model,
 #     db=SqliteMemoryDb(table_name="game_memory", db_file=db_file)
 # )
-memory = Memory( model=gemini_model,db=memory_db)
+memory = Memory( model=groq_model,db=memory_db)
 # OPTIMIZED AGENTS - STREAMLINED FOR EFFICIENCY
 
 narrative_tool = Agent(
     name="narrative_agent",
     model=groq_model,
-    instructions="""Create cinematic 400-600 word scene descriptions for movie-like experience.
+    instructions="""Create cinematic 300-350 word scene descriptions for movie-like experience.
 MOVIE FOCUS: Each scene is a crucial story beat - opening, rising action, climax, resolution.
 PACING: Scenes 1-10 (setup/world-building), 11-25 (rising tension), 26-40 (climax), 41-50 (resolution/ending).
 STYLE: Cinematic present tense, rich sensory details, emotional depth, cliffhanger momentum.
@@ -59,7 +62,8 @@ STORY PROGRESSION: Each scene must advance plot significantly - major revelation
 ENDING PREPARATION: Scenes 40+ should build toward meaningful conclusion with character arcs completing.
 AVOID: Trivial interactions, simple movements, basic conversations.
 INCLUDE: High stakes moments, emotional beats, plot revelations, character growth.
-OUTPUT: narration_text (600-800 words) with cinematic tension and major story advancement."""
+CRITICAL: Keep output to 300-350 words maximum. Do NOT exceed this — the text must fit within 1800 characters.
+OUTPUT: narration_text (300-350 words) with cinematic tension and major story advancement."""
 )
 
 npc_agent = Agent(
@@ -182,7 +186,8 @@ MORAL WEIGHT: Choices involve sacrifice, betrayal, heroism, survival ethics, cha
 EXAMPLES: "Save ally or escape", "Trust betrayer or go alone", "Sacrifice self or let others die", "Reveal secret or protect someone".
 ENDING CHOICES: Final scenes should offer meaningful resolutions - redemption, sacrifice, different ending paths.
 CONSEQUENCE CLARITY: Players should understand the weight and potential outcomes of their choices.
-OUTPUT: 3-4 crucial decisions that drive story forward and create meaningful consequences."""
+CRITICAL: All options MUST directly follow from what is described in the current scene's narration and situation. Options that reference characters, places, or events not yet established in this scene will confuse the player.
+OUTPUT: 3-4 crucial decisions as SHORT action phrases (5-12 words each) that drive story forward and create meaningful consequences."""
 )
 dialogue_agent = Agent(
     name="dialogue_agent",
@@ -222,7 +227,7 @@ MOVIE STRUCTURE:
 - Scenes 41-50: Resolution (character arcs conclude, meaningful endings, story closure)
 
 CINEMATIC REQUIREMENTS:
-- Rich 400-600 word narration per scene
+- Rich 300-350 word narration per scene (HARD LIMIT: 1800 chars to prevent truncation)
 - Substantial dialogue that drives story forward
 - Major decision points only - no trivial choices
 - Active threats that physically engage characters
@@ -241,8 +246,8 @@ PROCESS:
 3. Return ONLY valid JSON matching SceneResponse schema
 
 CRITICAL VALIDATION:
-- narration_text: 200-2000 chars
-- history_entry: 50-500 chars  
+- narration_text: 200-1800 chars (300-350 words) — MUST be a complete, coherent passage ending naturally
+- history_entry: 50-500 chars
 - options: 2-6 items max
 - relationship_level/trust_level: -10 to 10
 - durability: 0-100
@@ -266,7 +271,7 @@ JSON STRUCTURE (exact match to SceneResponse):
   "scene_tag": "string",
   "location": "string", 
   "world": "string",
-  "narration_text": "string (200-2000 chars)",
+  "narration_text": "string (200-1800 chars, 300-350 words, complete sentences only)",
   "dialogue": [
     {
       "speaker": "string",
@@ -439,16 +444,21 @@ OUTPUT: Only valid JSON in ```json blocks. All fields must be populated with app
 )
 
 # Streamlined usage function
-async def process_game_turn(player_input: AgentInput, user_id: str) -> str: # Changed return type to str
-    
-    """Process player turn and return game response"""
+async def process_game_turn(player_input: str, user_id: str) -> str:
+    """Process player turn and return game response.
+
+    orchestrator_agent.run() is a synchronous blocking call (Agno doesn't yet
+    expose a native async run). We offload it to a thread via asyncio.to_thread
+    so the FastAPI event loop is not blocked while waiting for the LLM response.
+    """
     try:
-        final_response_str = orchestrator_agent.run(player_input, user_id=user_id)
-        print(final_response_str)
-        # Return the JSON string directly as per user's request
+        final_response_str = await asyncio.to_thread(
+            orchestrator_agent.run, player_input, user_id=user_id
+        )
+        logger.debug(f"Raw agent response length: {len(final_response_str.content)}")
         return final_response_str.content
     except Exception as e:
-        print(f"Error in process_game_turn: {e}")
+        logger.error(f"Error in process_game_turn: {e}", exc_info=True)
         # Default WorldInfo for error response
         default_world_info = WorldInfo(
             name="Unknown World",

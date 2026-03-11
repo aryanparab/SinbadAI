@@ -180,6 +180,10 @@ def create_game_context(input_data: AgentInput) -> str:
     escalation_level = game_progress.story_escalation_level
     tension_level = game_progress.tension_level
     
+    # Previous scene narration — gives agents direct prose continuity reference
+    prev_narration = current_scene.narration_text
+    prev_narration_excerpt = (prev_narration[:600] + "…") if len(prev_narration) > 600 else prev_narration
+
     # Fixed: use consistent field names
     game_context = f"""
 PLAYER INTERACTION CONTEXT:
@@ -187,6 +191,9 @@ Interaction Type: {interaction_type}
 Player Choice: "{choice_text}"{element_info}
 Previous Scene Tag: {input_data.scene_tag or "Game Start"}
 Total Scenes Completed: {scenes_completed} out of 50
+
+PREVIOUS SCENE NARRATION (maintain prose tone and continuity from this):
+{prev_narration_excerpt}
 
 CURRENT SCENE CONTEXT:
 Location: {input_data.current_location}
@@ -258,6 +265,8 @@ SCENE REQUIREMENTS:
 - Create a meaningful history_entry summarizing what happens in this scene
 - Respond appropriately to the {interaction_type} interaction type
 - Ensure all fields in the SceneResponse schema are populated, even with empty lists/default values if no new data is generated.
+- NARRATION CONTINUITY: The new narration_text must pick up tonally and contextually from the PREVIOUS SCENE NARRATION shown above. Do not restart world-building from scratch each scene.
+- OPTIONS CONSISTENCY: Every option in the "options" array must directly relate to characters, events, or elements described in THIS scene's narration_text. No option should reference something not yet established.
 
 Please coordinate your specialist agents to create a rich, interactive scene that responds to this player action while maintaining narrative continuity and advancing the story meaningfully.
 """
@@ -269,59 +278,34 @@ async def interact(input: AgentInput):
     """
     Main interaction endpoint for the RPG system
     """
-    try: 
+    try:
         # Build comprehensive game context
         game_context = create_game_context(input)
-       
-        logger.info(f"Processing interaction for session {input.session_id}")
-        logger.info(f"Player choice: {input.player_choice}")
-        logger.info(f"Player scenes completed: {input.game_progress.scenes_completed}")
-        print(f"\n{'='*60}")
-        print(f"BACKEND DEBUG: Processing interaction")
-        print(f"Session ID: {input.session_id}")
-        print(f"Player choice: {input.player_choice}")
-        print(f"Scenes completed: {input.game_progress.scenes_completed}")
-        print(f"Current location: {input.current_location}")
-        print(f"Current world: {input.current_world}")
-        print(f"{'='*60}\n")
-        
+
+        logger.info(
+            f"Processing interaction | session={input.session_id} "
+            f"scene={input.game_progress.scenes_completed} "
+            f"location={input.current_location}"
+        )
+        logger.debug(f"Player choice: {input.player_choice}")
+
         # Get response from coordinated game agents
         raw_result_str = await process_game_turn(game_context, input.session_id)
-        
-        # DEBUG: Log raw result from agent
-        print(f"{'='*60}")
-        print(f"RAW AGENT RESPONSE (length: {len(raw_result_str)})")
-        print(f"Preview: {raw_result_str[:300]}...")
-        print(f"{'='*60}\n")
-        
+        logger.debug(f"Raw agent response length: {len(raw_result_str)}")
+
         # Parse the JSON string result
         result_dict = parse_json_block(raw_result_str)
-        
-        # DEBUG: Log parsed result
-        print(f"{'='*60}")
-        print(f"PARSED JSON KEYS: {list(result_dict.keys())}")
-        print(f"scene_tag: {result_dict.get('scene_tag', 'MISSING')}")
-        print(f"location: {result_dict.get('location', 'MISSING')}")
-        print(f"world: {result_dict.get('world', 'MISSING')}")
-        print(f"{'='*60}\n")
-        
+        logger.debug(f"Parsed keys: {list(result_dict.keys())} | scene_tag={result_dict.get('scene_tag')}")
+
         # Validate and fix the response
         result_dict = validate_and_fix_response(result_dict)
-        
-        # DEBUG: Log validated result
-        print(f"{'='*60}")
-        print(f"VALIDATED RESPONSE STRUCTURE")
-        print(f"scene_tag: {result_dict.get('scene_tag', 'MISSING')}")
-        print(f"location: {result_dict.get('location', 'MISSING')}")
-        print(f"world: {result_dict.get('world', 'MISSING')}")
-        print(f"narration_text length: {len(result_dict.get('narration_text', ''))}")
-        print(f"characters count: {len(result_dict.get('characters', []))}")
-        print(f"options count: {len(result_dict.get('options', []))}")
-        print(f"{'='*60}\n")
-        
-        with open('debug_output.json', 'w') as f:
-            json.dump(result_dict, f, indent=2)
-        
+        logger.debug(
+            f"Validated | scene_tag={result_dict.get('scene_tag')} "
+            f"narration_len={len(result_dict.get('narration_text', ''))} "
+            f"chars={len(result_dict.get('characters', []))} "
+            f"options={len(result_dict.get('options', []))}"
+        )
+
         # Create scene response Pydantic model
         scene_response = SceneResponse(**result_dict)
        
@@ -367,7 +351,7 @@ async def init_game(request: Request):
         clear_success = clear_user_memories(memory, session_id)
        
         if clear_success:
-            print(f"world: {world}")
+            logger.info(f"New game started for session {session_id}, world: {world}")
             return {"status": "cleared", "world": world, "message": "New game started."}
         else:
             logger.error(f"Failed to clear previous game data for session {session_id}")
@@ -384,8 +368,12 @@ async def init_game(request: Request):
         if user_memories:
             # Get the latest memory for scene state
             # Assuming user_memories is ordered by last_updated descending
-            latest_memory_record = user_memories[0] 
-            latest_memory_data = json.loads(latest_memory_record.to_dict()['memory'])
+            latest_memory_record = user_memories[0]
+            try:
+                raw = latest_memory_record.to_dict().get('memory', '{}')
+                latest_memory_data = json.loads(raw) if isinstance(raw, str) else raw
+            except (json.JSONDecodeError, AttributeError):
+                latest_memory_data = {}
            
             return {
                 "status": "loaded",
@@ -416,7 +404,8 @@ async def get_session_memory(session_id: str):
         if not get_user_memories(memory, session_id):
             return {"status": "no_memory", "message": "No memories found for this session."}
         
-        memory_summary = get_memory_summary(memory, session_id)[0]
+        # get_memory_summary returns a str (joined narrative summaries), not a list
+        memory_summary = get_memory_summary(memory, session_id)
         user_memories = get_user_memories(memory, session_id)
         
         return {

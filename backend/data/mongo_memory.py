@@ -9,6 +9,7 @@ from typing import Optional, List, Dict, Any
 from datetime import datetime
 from pymongo import MongoClient
 import os
+import uuid
 import logging
 
 logger = logging.getLogger(__name__)
@@ -28,13 +29,15 @@ class MongoMemoryDb:
         if not mongodb_uri:
             raise ValueError("MONGODB_URI environment variable not set")
         
+        is_dev = os.getenv("ENVIRONMENT", "development") != "production"
         try:
-            # Add SSL/TLS options for macOS compatibility
             self.client = MongoClient(
                 mongodb_uri,
                 serverSelectionTimeoutMS=5000,
                 tls=True,
-                tlsAllowInvalidCertificates=True  # For development only
+                # Only bypass cert validation in dev (e.g. local self-signed certs).
+                # In production this MUST be False so TLS is properly enforced.
+                tlsAllowInvalidCertificates=is_dev,
             )
             # Test connection
             self.client.admin.command('ping')
@@ -106,9 +109,8 @@ class MongoMemoryDb:
                     )
                     logger.debug(f"Updated memory with id: {row['id']}")
                 else:
-                    # ⭐ Generate UUID if no id provided
+                    # Generate UUID if no id provided
                     if "id" not in row:
-                        import uuid
                         row["id"] = str(uuid.uuid4())
                     
                     result = self.collection.insert_one(row)
@@ -367,7 +369,7 @@ class MongoMemoryDb:
         """Cleanup on deletion"""
         try:
             self.close()
-        except:
+        except Exception:
             pass
 
 

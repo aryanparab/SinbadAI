@@ -1,5 +1,6 @@
 # memory_service.py
 from agno.memory.v2.schema import UserMemory
+from agno.memory.v2.db.schema import MemoryRow
 from typing import List, Optional, Dict, Any
 import logging
 import json
@@ -7,120 +8,213 @@ from datetime import datetime, timezone
 
 logger = logging.getLogger(__name__)
 
+
+def _build_narrative_summary(game_data: Dict[str, Any]) -> str:
+    """
+    Build a concise natural-language summary from game_data.
+
+    This is what Agno injects as text into the agent's context window on
+    subsequent turns — so it must be readable prose, NOT raw JSON.
+    Keeping it tight (< ~400 tokens) avoids bloating the context across
+    many saved scenes.
+    """
+    parts = []
+
+    # Scene location & tag
+    scene_tag = game_data.get("scene_tag", "unknown_scene")
+    location  = game_data.get("location", "unknown location")
+    world     = game_data.get("world", "")
+    scenes_completed = game_data.get("scenes_completed", 0)
+    parts.append(
+        f"[Scene {scenes_completed}: {scene_tag}] Location: {location}"
+        + (f" ({world})" if world else "") + "."
+    )
+
+    # What happened this scene
+    history_entry = game_data.get("history_entry", "")
+    if history_entry:
+        parts.append(f"What happened: {history_entry}")
+
+    # Recent history (last 5 entries)
+    recent = game_data.get("history", [])
+    if recent:
+        last_5 = recent[-5:]
+        parts.append("Recent history: " + " | ".join(last_5) + ".")
+
+    gs = game_data.get("game_state", {})
+
+    # Active objectives
+    active_objs = gs.get("active_objectives", [])
+    if active_objs:
+        descs = []
+        for o in active_objs[:4]:
+            if isinstance(o, dict):
+                descs.append(o.get("description", str(o)))
+            else:
+                descs.append(str(o))
+        parts.append("Active objectives: " + "; ".join(descs) + ".")
+
+    # Major events (last 3)
+    major_events = gs.get("major_events", [])
+    if major_events:
+        parts.append("Major story events: " + "; ".join(str(e) for e in major_events[-3:]) + ".")
+
+    # Relationships (top 5)
+    relationships = gs.get("relationships", {})
+    if relationships:
+        rel_str = ", ".join(
+            f"{k}: {v}/10" for k, v in list(relationships.items())[:5]
+        )
+        parts.append(f"Relationships: {rel_str}.")
+
+    # Reputation
+    reputation = gs.get("reputation", {})
+    if reputation:
+        rep_str = ", ".join(f"{k}: {v}" for k, v in list(reputation.items())[:4])
+        parts.append(f"Faction reputation: {rep_str}.")
+
+    # Inventory (names only, top 6)
+    inventory = game_data.get("inventory", [])
+    if inventory:
+        item_names = []
+        for i in inventory[:6]:
+            item_names.append(i.get("name", str(i)) if isinstance(i, dict) else str(i))
+        parts.append("Inventory: " + ", ".join(item_names) + ".")
+
+    # Revealed secrets (last 2)
+    secrets = gs.get("revealed_secrets", [])
+    if secrets:
+        parts.append("Known secrets: " + "; ".join(str(s) for s in secrets[-2:]) + ".")
+
+    return " ".join(parts)
+
+
 def add_game_memory(memory_instance, session_id: str, game_data: Dict[str, Any]) -> bool:
     """
-    Store game memory with proper structure for MongoDB
+    Store game memory using Agno's MemoryRow (what upsert_memory actually expects).
+
+    MemoryRow.memory is Dict[str, Any] — we store both the narrative summary
+    (for Agno context injection) and the full game_data (for load/save) inside it.
+    The SQLite backend serialises memory via str() and deserialises via eval().
     """
     try:
-        # ⭐ Store directly to the database for better structure
-        memory_dict = {
-            "user_id": session_id,
-            "session_id": session_id,
-            "created_at": datetime.now(timezone.utc),  # ⭐ Fixed deprecated utcnow()
-            "last_updated": datetime.now(timezone.utc),
-            
-            # Store the actual game data at top level for easy access
+        narrative_summary = _build_narrative_summary(game_data)
+
+        # MemoryRow.memory must be a dict — pack both the prose summary and
+        # the full structured data so nothing is lost.
+        memory_payload: Dict[str, Any] = {
+            # Agno injects this field as the agent's context text on next turn.
+            "memory": narrative_summary,
+            # Full structured data — used by the /load endpoint.
             "game_data": game_data,
-            
-            # Also store as JSON string for Agno compatibility
-            "memory": json.dumps(game_data),
-            
-            # Extract key fields for easy querying
+            # Index fields for quick querying / display.
             "scene_tag": game_data.get("scene_tag"),
             "location": game_data.get("location"),
             "world": game_data.get("world"),
             "scenes_completed": game_data.get("scenes_completed", 0),
         }
-        
-        # Use the database directly for better control
+
         if hasattr(memory_instance, 'db'):
-            # Access the underlying database
-            result = memory_instance.db.upsert_memory(memory_dict)
-            logger.info(f"Added game memory for session {session_id} (direct DB)")
+            memory_row = MemoryRow(
+                user_id=session_id,
+                memory=memory_payload,
+                last_updated=datetime.now(timezone.utc),
+            )
+            memory_instance.db.upsert_memory(memory_row)
+            logger.info(f"Added game memory for session {session_id} (MemoryRow, narrative summary)")
         else:
-            # Fallback to Agno's method
+            # Fallback: Agno public API only stores the narrative string.
             memory_instance.add_user_memory(
                 user_id=session_id,
-                memory=UserMemory(memory=json.dumps(game_data))
+                memory=UserMemory(memory=narrative_summary)
             )
-            logger.info(f"Added game memory for session {session_id} (Agno wrapper)")
-        
+            logger.info(f"Added game memory for session {session_id} (Agno wrapper, narrative summary)")
+
         return True
-        
+
     except Exception as e:
-        logger.error(f"Error adding game memory for session {session_id}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error adding game memory for session {session_id}: {e}", exc_info=True)
         return False
 
 def get_user_memories(memory_instance, session_id: str) -> List[UserMemory]:
     """
-    Get memories with proper parsing
+    Get memories with proper parsing.
+
+    read_memories() returns MemoryRow objects (Pydantic models).
+    MemoryRow.memory is a dict that we stored via add_game_memory — it contains
+    both "memory" (narrative string) and "game_data" (full structured data).
     """
     try:
-        # Try to get from database directly first for better structure
         if hasattr(memory_instance, 'db'):
-            memories = memory_instance.db.read_memories(session_id)
-            
-            # Convert to UserMemory objects
+            # read_memories returns List[MemoryRow] — each .memory is a dict
+            memory_rows: List[MemoryRow] = memory_instance.db.read_memories(
+                user_id=session_id
+            )
+
             user_memories = []
-            for mem in memories:
-                # If we have game_data field, use it
-                if "game_data" in mem:
-                    memory_content = json.dumps(mem["game_data"])
+            for row in memory_rows:
+                # row.memory is the dict we stored; fall back gracefully if format changed
+                mem_dict: Dict[str, Any] = row.memory if isinstance(row.memory, dict) else {}
+
+                # Prefer game_data for structured load/save; fall back to raw memory string
+                if "game_data" in mem_dict:
+                    memory_content = json.dumps(mem_dict["game_data"], default=str)
+                elif "memory" in mem_dict:
+                    memory_content = mem_dict["memory"]
                 else:
-                    # Fall back to memory field
-                    memory_content = mem.get("memory", "{}")
-                
-                # ⭐ FIX: UserMemory doesn't take user_id parameter
+                    memory_content = json.dumps(mem_dict, default=str)
+
                 user_memories.append(UserMemory(
-                    memory_id=mem.get("id"),
-                    memory=memory_content
-                    # ❌ Removed: user_id=session_id
+                    memory_id=row.id,
+                    memory=memory_content,
+                    last_updated=row.last_updated,
                 ))
-            
+
             logger.info(f"Retrieved {len(user_memories)} memories for session {session_id}")
             return user_memories
         else:
-            # Fallback to Agno's method
             memories = memory_instance.get_user_memories(user_id=session_id)
             logger.info(f"Retrieved {len(memories)} memories for session {session_id}")
             return memories
-        
+
     except Exception as e:
-        logger.error(f"Error retrieving memories for session {session_id}: {e}")
-        import traceback
-        traceback.print_exc()
+        logger.error(f"Error retrieving memories for session {session_id}: {e}", exc_info=True)
         return []
     
 
 def clear_user_memories(memory_instance, session_id: str) -> bool:
     """
-    Clear all memories for a session
+    Clear all memories for a session.
+
+    db.clear() takes NO arguments — it wipes the whole table.
+    For per-session deletion we must delete rows one by one using delete_memory().
     """
     try:
-        # Use database directly if available
         if hasattr(memory_instance, 'db'):
-            memory_instance.db.clear(user_id=session_id)
-            logger.info(f"Cleared all memories for session {session_id} (direct DB)")
+            # read_memories filters by user_id; then delete each row individually
+            memory_rows: List[MemoryRow] = memory_instance.db.read_memories(
+                user_id=session_id
+            )
+            for row in memory_rows:
+                if row.id:
+                    memory_instance.db.delete_memory(row.id)
+            logger.info(
+                f"Cleared {len(memory_rows)} memories for session {session_id} (direct DB)"
+            )
         else:
-            # Fallback to Agno's method
             memories = get_user_memories(memory_instance, session_id)
-            
-            # Delete each memory
             for memory_item in memories:
                 if memory_item.memory_id:
                     memory_instance.delete_user_memory(
                         user_id=session_id,
                         memory_id=memory_item.memory_id
                     )
-            
             logger.info(f"Cleared all memories for session {session_id} (Agno wrapper)")
-        
+
         return True
-        
+
     except Exception as e:
-        logger.error(f"Error clearing memories for session {session_id}: {e}")
+        logger.error(f"Error clearing memories for session {session_id}: {e}", exc_info=True)
         return False
 
 def search_memories(memory_instance, session_id: str, query: str, limit: int = 10) -> List[UserMemory]:
