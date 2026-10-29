@@ -3,6 +3,17 @@
 A dynamic adventure with a planned ending, recurring characters, consequential
 choices, and playable combat, infiltration and rescue missions.
 
+**[Play the live adventure](https://sinbad-ai.vercel.app)** ·
+[Backend health](https://sinbad-api.onrender.com/)
+
+Choose a world, try a mission, and watch your decisions change the story. Guest
+play is available immediately; Google sign-in is optional. The opening counts as
+the first story turn.
+
+The demo runs on free hosting. After inactivity, the backend can take about a
+minute to wake. Groq also enforces free-tier rate limits: if prompted, wait about
+a minute before retrying. Failed generations leave the saved story turn unchanged.
+
 ## How it plays
 
 - Choose a world and a campaign length: 30 story turns by default, or 5–60.
@@ -19,8 +30,22 @@ choices, and playable combat, infiltration and rescue missions.
 
 ## Architecture
 
-Next.js/React frontend → same-origin API proxy → FastAPI → Groq narrative director.
-SQLite locally, or PostgreSQL when DATABASE_URL is set, stores canonical campaign snapshots and daily generation quotas.
+| Layer | Technology | Deployed on |
+| --- | --- | --- |
+| Interface and Google login | Next.js, React, NextAuth | Vercel |
+| Game API and state reconciliation | FastAPI, Python 3.12 | Render Free, Docker |
+| Persistent saves and shared quota | PostgreSQL | Neon Free |
+| Narrative generation | Groq, `openai/gpt-oss-120b` | Groq API |
+
+The browser calls same-origin Next.js API routes, which proxy requests to FastAPI.
+The backend loads canonical state, requests a scene from Groq, validates the response,
+reconciles inventory and objectives, then saves the result in PostgreSQL. SQLite
+provides the same storage interface for local development.
+
+Per-campaign locks and stale-scene checks prevent duplicate actions. The backend
+owns turn counts and inventory; an invalid model response receives at most one
+repair attempt, counted against the shared quota. Opening outlines are required,
+and the final turn must resolve the campaign with an epilogue.
 
 Three editable prompts in `backend/prompts/` define the director:
 
@@ -28,9 +53,9 @@ Three editable prompts in `backend/prompts/` define the director:
 - `mission.md`: meaningful objectives, aftermath, inventory and collectible rules.
 - `combat.md`: playable encounters and clickable scene props.
 
-One model request normally resolves an approach and generates the next story beat; an invalid response gets at most one format-repair request, counted in the shared quota. The legacy tactical endpoint remains compatible with existing clients, but the current UI uses contextual narrative actions. The backend reconciles
-inventory deltas, relationship changes, objectives and campaign progress. Client
-state is never the authority for owned items or turn counts.
+The current interface uses contextual narrative actions. The older deterministic
+tactical endpoint remains compatible with legacy clients; it is not the current
+player-facing loop.
 
 The old Agno and Mongo memory experiments remain as historical source files;
 the deployed application does not import them. Runtime dependencies are locked
@@ -90,7 +115,8 @@ npm audit --omit=dev
 The tests cover inventory quantities and durability, persistent relationships and
 objectives, complete 30-turn campaigns, final epilogue requirements, failed model
 calls, tactical actions, duplicate requests, one-shot caches, rewards, stale scenes
-and the shared daily model-request cap. The production build validates types and
+and the shared daily model-request cap. Additional regressions cover missing
+opening-outline repair and actionable provider rate-limit responses. The production build validates types and
 lint. Existing hook dependency warnings are visible; checks are not bypassed.
 
 ## Free hosting: Vercel + Render + Neon
@@ -146,9 +172,22 @@ set `TEST_DATABASE_URL` to a **dedicated disposable database** before running th
 suite. These tests truncate their campaign and quota tables. They verify save
 updates, guest isolation, rollback and concurrent quota enforcement.
 
-The Docker image built and launched successfully on Render. Local Docker Desktop validation was not performed.
-Before sharing, verify guest start/resume, a narrative action, Google sign-in/out,
-and save persistence after a backend restart.
+Deployment checks completed:
+
+- The Docker image built and launched successfully on Render.
+- Production requests pass through Vercel → Render → Neon.
+- Live gameplay reached turn 4 with journal entries and a collected artifact.
+- Refresh recovery restored the hosted campaign.
+- The Google OAuth provider remains available; full sign-in/sign-out was not
+  repeated as part of the final deployment check.
+- The latest default suite passed 20 tests; three PostgreSQL integration tests
+  were skipped without `TEST_DATABASE_URL`. Those three passed separately against
+  a real temporary PostgreSQL database during storage validation.
+- The frontend production build passed, and the backend dependency audit found
+  no known vulnerabilities at deployment time.
+
+Local Docker Desktop validation was not performed. Free-tier cold starts and
+model-provider limits remain relevant to demo availability.
 
 ## DnD-style direction
 
