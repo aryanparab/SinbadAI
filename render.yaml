@@ -1,0 +1,21 @@
+services:
+  - type: web
+    name: sinbad-api
+    runtime: docker
+    plan: free
+    branch: main
+    rootDir: backend
+    dockerfilePath: ./Dockerfile
+    dockerContext: .
+    healthCheckPath: /
+    envVars:
+      - key: GROQ_API_KEY
+        sync: false
+      - key: DATABASE_URL
+        sync: false
+      - key: GROQ_MODEL
+        value: openai/gpt-oss-120b
+      - key: DAILY_AI_CALL_LIMIT
+        value: "100"
+      - key: ALLOWED_ORIGINS
+        value: https://sinbad-ai.vercel.app

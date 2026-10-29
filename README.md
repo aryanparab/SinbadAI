@@ -20,7 +20,7 @@ choices, and playable combat, infiltration and rescue missions.
 ## Architecture
 
 Next.js/React frontend → same-origin API proxy → FastAPI → Groq narrative director.
-SQLite stores canonical campaign snapshots and daily generation quotas.
+SQLite locally, or PostgreSQL when DATABASE_URL is set, stores canonical campaign snapshots and daily generation quotas.
 
 Three editable prompts in `backend/prompts/` define the director:
 
@@ -93,86 +93,62 @@ calls, tactical actions, duplicate requests, one-shot caches, rewards, stale sce
 and the shared daily model-request cap. The production build validates types and
 lint. Existing hook dependency warnings are visible; checks are not bypassed.
 
-## Hosting: Vercel + Railway
+## Free hosting: Vercel + Render + Neon
 
-The repository is prepared for a Vercel frontend and a Railway backend. The
-configuration is checked in; hosting accounts, production domains, secrets and
-Google OAuth callback registration still need to be configured.
+The frontend stays on the existing Vercel project. `render.yaml` defines a **Free**
+Docker web service for the backend, and Neon Free PostgreSQL stores campaign saves
+and the shared daily quota. No paid disk is required. Render Free sleeps after
+15 minutes idle, so the first request after inactivity can take longer.
 
-### 1. Backend on Railway
+1. Create a Neon Free PostgreSQL project (Oregon, to match the backend). Copy its
+   connection string with `sslmode=require`; treat it as a password.
+2. In Render, create a Web Service from this repository, branch `main`, root
+   directory `backend`, runtime Docker, and **Free ($0/month)** compute. Alternatively,
+   import the root `render.yaml` as a Blueprint.
+3. Set the protected Render variables:
 
-1. Connect this GitHub repository and select the `main` branch.
-2. Set the service **Root Directory** to `/backend`. Railway detects `Dockerfile`;
-   configuration lives in `backend/railway.json` (select `/backend/railway.json`
-   as the config file path if the dashboard does not detect it).
-3. Attach a persistent volume at `/app/data` **before allowing real play**.
-4. Set the variables below. Generate a public backend domain and save its origin.
-5. Use one service replica and one Uvicorn worker. The container reads the platform's
-   `PORT`; health checks request `/`.
-
-| Backend variable | Value |
+| Variable | Value |
 | --- | --- |
-| `GROQ_API_KEY` | Your Groq key; server only |
+| `GROQ_API_KEY` | Your existing Groq API key |
+| `DATABASE_URL` | Neon PostgreSQL connection string with SSL |
 | `GROQ_MODEL` | `openai/gpt-oss-120b` |
-| `DAILY_AI_CALL_LIMIT` | `100` or your chosen shared daily limit |
-| `CAMPAIGN_DB_PATH` | `/app/data/campaigns.sqlite3` |
-| `ALLOWED_ORIGINS` | The final frontend origin, e.g. `https://your-project.vercel.app` |
+| `DAILY_AI_CALL_LIMIT` | `100` |
+| `ALLOWED_ORIGINS` | `https://sinbad-ai.vercel.app` |
 
-The volume retains saves and the shared quota across deployments. Per-campaign
-locks are process-local, so multiple workers/replicas require a database locking
-redesign. The daily cap counts model invocations per UTC day, including failed
-requests and format repairs. It is not a dollar spending guarantee; configure
-provider spending controls separately. Saved adventures remain readable when the
-model quota runs out; new narrative actions require available quota.
+4. Deploy and verify the Render `/` health endpoint. Keep one replica and one
+   worker: per-campaign action locks are process-local.
+5. Set Vercel's production `BACKEND_URL` to the Render HTTPS origin (without
+   `/game/interact`) and redeploy. Retain `NEXTAUTH_URL`, `NEXTAUTH_SECRET`,
+   `GOOGLE_CLIENT_ID`, and `GOOGLE_CLIENT_SECRET` in Vercel.
+6. In Google Cloud, retain the authorized callback
+   `https://sinbad-ai.vercel.app/api/auth/callback/google`.
 
-Railway references: [Dockerfiles](https://docs.railway.com/builds/dockerfiles),
-[persistent volumes](https://docs.railway.com/volumes).
+`DATABASE_URL` selects PostgreSQL; local development without it uses SQLite.
+Render refuses campaign writes without `DATABASE_URL` so a restart cannot silently
+lose saves or reset the shared quota. Existing local SQLite campaigns are not
+copied automatically to the hosted database. Signed-in and guest saves currently
+remain tied to the browser's player ID, not a cross-device account.
 
-### 2. Frontend on Vercel
+The cap counts model calls per UTC day, including failures and format repairs;
+it is not a dollar spending guarantee. Set provider spending controls separately.
+Free hosting does not remove the model provider's limits. Neon and Render free
+plans have resource allowances; do not enable a paid plan for this setup.
 
-1. Import this repository, select `main` as the production branch, and set **Root
-   Directory** to `frontend`. Use the Next.js preset and Node 22.
-2. Add the variables below to the Production environment. Use separate values
-   for local development; never commit live credentials.
-3. Deploy, then use the final frontend origin in Google and Railway configuration.
-   Redeploy when changing environment variables.
+References: [Render Free](https://render.com/docs/free),
+[Render Blueprint specification](https://render.com/docs/blueprint-spec),
+[Neon Free](https://neon.com/blog/neon-free-plan-1-gb-per-project),
+[NextAuth Google callback](https://next-auth.js.org/providers/google).
 
-| Frontend variable | Value |
-| --- | --- |
-| `BACKEND_URL` | Railway HTTPS origin, without `/game/interact` |
-| `NEXTAUTH_URL` | Canonical frontend HTTPS origin |
-| `NEXTAUTH_SECRET` | A unique secret from `openssl rand -base64 32` |
-| `GOOGLE_CLIENT_ID` | Google web OAuth client ID |
-| `GOOGLE_CLIENT_SECRET` | Google web OAuth client secret |
+### Validation
 
-These variables are server-side and must not use a `NEXT_PUBLIC_` prefix.
-`frontend/vercel.json` uses native Next.js routing, including `/game` and
-`/api/auth/*`; there is no catch-all homepage rewrite.
+Run the default suite as above. For the optional real PostgreSQL integration tests,
+set `TEST_DATABASE_URL` to a **dedicated disposable database** before running the
+suite. These tests truncate their campaign and quota tables. They verify save
+updates, guest isolation, rollback and concurrent quota enforcement.
 
-References: [Vercel environment variables](https://vercel.com/docs/environment-variables),
-[NextAuth production options](https://next-auth.js.org/configuration/options).
-
-### 3. Keep Google login working
-
-In the Google Cloud Console, configure a **Web application** OAuth client:
-
-- Authorized JavaScript origins: `http://localhost:3000` and the final frontend origin.
-- Authorized redirect URIs: `http://localhost:3000/api/auth/callback/google` and
-  `https://YOUR-FRONTEND-DOMAIN/api/auth/callback/google`.
-- Configure the consent screen and any test-user restrictions for the intended audience.
-
-Use a stable production domain for OAuth; arbitrary preview URLs are not registered
-callbacks. Login is optional, and existing guest saves remain attached to the browser.
-
-### Release checks
-
-- Backend regression suite: 18 tests passed during local preparation.
-- Frontend production build passed, with existing hook dependency warnings.
-- Local Google provider discovery and redirect initiation can be checked without
-  signing in; completing OAuth requires the configured Google account and callback.
-- Docker build/run validation is **pending**: Docker Desktop's daemon was stopped.
-- After deployment, verify backend `/`, guest start/resume, one narrative action,
-  Google sign-in/sign-out, and save persistence after a backend restart.
+Docker build/run validation remains pending because Docker Desktop was stopped.
+Before sharing, verify guest start/resume, a narrative action, Google sign-in/out,
+and save persistence after a backend restart.
 
 ## DnD-style direction
 

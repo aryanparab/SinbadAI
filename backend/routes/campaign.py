@@ -11,6 +11,15 @@ DB_PATH = Path(os.getenv("CAMPAIGN_DB_PATH", "data/campaigns.sqlite3"))
 
 @contextmanager
 def connect():
+    database_url = os.getenv("DATABASE_URL", "").strip()
+    if database_url:
+        import psycopg
+        with psycopg.connect(database_url, connect_timeout=15) as conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS campaigns (id TEXT PRIMARY KEY, data TEXT NOT NULL)")
+            yield conn
+        return
+    if os.getenv("RENDER"):
+        raise RuntimeError("DATABASE_URL is required on Render to preserve saves and quotas.")
     DB_PATH.parent.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH)
     try:
@@ -22,12 +31,14 @@ def connect():
 
 def load(session_id):
     with connect() as conn:
-        row = conn.execute("SELECT data FROM campaigns WHERE id=?", (session_id,)).fetchone()
+        placeholder = "%s" if os.getenv("DATABASE_URL", "").strip() else "?"
+        row = conn.execute(f"SELECT data FROM campaigns WHERE id={placeholder}", (session_id,)).fetchone()
     return json.loads(row[0]) if row else None
 
 def save(session_id, data):
     with connect() as conn:
-        conn.execute("INSERT OR REPLACE INTO campaigns VALUES (?, ?)", (session_id, json.dumps(data)))
+        placeholder = "%s" if os.getenv("DATABASE_URL", "").strip() else "?"
+        conn.execute(f"INSERT INTO campaigns (id, data) VALUES ({placeholder}, {placeholder}) ON CONFLICT(id) DO UPDATE SET data=excluded.data", (session_id, json.dumps(data)))
 
 def apply_inventory(previous, changes):
     items = {i.name.casefold(): i.model_copy(deep=True) for i in previous}
@@ -111,6 +122,7 @@ def reserve_generation():
     day = datetime.now(timezone.utc).date().isoformat()
     with connect() as conn:
         conn.execute("CREATE TABLE IF NOT EXISTS generation_usage (day TEXT PRIMARY KEY, calls INTEGER NOT NULL)")
-        conn.execute("INSERT OR IGNORE INTO generation_usage VALUES (?, 0)", (day,))
-        updated = conn.execute("UPDATE generation_usage SET calls=calls+1 WHERE day=? AND calls < ?", (day, limit))
+        placeholder = "%s" if os.getenv("DATABASE_URL", "").strip() else "?"
+        conn.execute(f"INSERT INTO generation_usage (day, calls) VALUES ({placeholder}, 0) ON CONFLICT(day) DO NOTHING", (day,))
+        updated = conn.execute(f"UPDATE generation_usage SET calls=calls+1 WHERE day={placeholder} AND calls < {placeholder}", (day, limit))
         return updated.rowcount == 1
