@@ -6,6 +6,7 @@ ROOT = Path(__file__).parent
 
 def build_director_instructions():
     example = {
+        "story_plan": {"central_conflict": "The campaign conflict in the chosen world", "stakes": "What can be lost", "key_characters": ["Stable cast IDs and their agendas"], "setup": "Opening situation", "midpoint_reversal": "A planned revelation", "climax": "The decisive confrontation", "possible_endings": ["A costly victory", "An alternative shaped by the player"]},
         "scene_title": "An original title for this scene", "chapter_title": "An original chapter title",
         "scene_tag": "opening", "world": "chosen world", "location": "specific location",
         "narration_text": "Two to four paragraphs, with paragraph breaks.",

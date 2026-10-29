@@ -146,7 +146,7 @@ set `TEST_DATABASE_URL` to a **dedicated disposable database** before running th
 suite. These tests truncate their campaign and quota tables. They verify save
 updates, guest isolation, rollback and concurrent quota enforcement.
 
-Docker build/run validation remains pending because Docker Desktop was stopped.
+The Docker image built and launched successfully on Render. Local Docker Desktop validation was not performed.
 Before sharing, verify guest start/resume, a narrative action, Google sign-in/out,
 and save persistence after a backend restart.
 

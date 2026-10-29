@@ -379,12 +379,14 @@ Use relationship_changes as per-turn deltas; the server derives persistent relat
                     raise ValueError("The director did not return a playable scene")
                 result_dict = validate_and_fix_response(result_dict)
                 scene_response = SceneResponse(**result_dict)
+                if not plan and not all(scene_response.story_plan.get(key) for key in ("central_conflict", "climax", "possible_endings")):
+                    raise ValueError("The opening must include a complete story_plan")
                 break
             except ValueError:
                 if attempt:
                     raise
                 # One format repair is included in the shared daily quota.
-                game_context += "\nFORMAT CORRECTION: Your previous response was not one valid scene object. Return exactly ONE JSON object with narration_text, options and all required scene fields. Do not return a list, primitive, outline alone, or encoded JSON string. Keep the same world, action and story contract."
+                game_context += "\nFORMAT CORRECTION: Your previous response was not one valid scene object. Return exactly ONE JSON object with narration_text, options and all required scene fields. On the opening include story_plan with nonempty central_conflict, climax and possible_endings. Do not return a list, primitive, outline alone, or encoded JSON string. Keep the same world, action and story contract."
 
         if scene_response.scene_tag.startswith(("error", "fallback")):
             raise HTTPException(502, "The story engine could not generate a scene. Retry; your turn is unchanged.")

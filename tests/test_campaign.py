@@ -80,6 +80,23 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(second.json()['game_state']['story_flags']['turn'], 2)
         self.assertIsNone(second.json()['game_state']['story_flags']['encounter'])
 
+    def test_missing_opening_plan_is_repaired_before_saving(self):
+        self.client.post('/game/init', json={'session_id': 'test-player', 'action': 'new', 'world': 'City'})
+        calls = []
+        async def generate(context, *args):
+            calls.append(context)
+            scene = copy.deepcopy(self.scene)
+            if len(calls) == 1:
+                scene['story_plan'] = {}
+            return json.dumps(scene)
+        with patch.object(game, 'process_game_turn', generate):
+            result = self.client.post('/game/interact', json=self.input)
+        self.assertEqual(result.status_code, 200, result.text)
+        self.assertEqual(len(calls), 2)
+        self.assertIn('FORMAT CORRECTION', calls[1])
+        self.assertEqual(campaign.load('test-player')['memory']['scenes_completed'], 1)
+        self.assertEqual(campaign.load('test-player')['plan']['central_conflict'], 'Flood')
+
     def test_failed_generation_does_not_advance(self):
         self.client.post('/game/init', json={'session_id': 'test-player', 'action': 'new', 'world': 'City'})
         async def fail(*args): raise RuntimeError('provider unavailable')
