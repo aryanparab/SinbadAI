@@ -97,6 +97,19 @@ class CampaignTests(unittest.TestCase):
         self.assertEqual(campaign.load('test-player')['memory']['scenes_completed'], 1)
         self.assertEqual(campaign.load('test-player')['plan']['central_conflict'], 'Flood')
 
+    def test_provider_rate_limit_is_actionable_without_spending_turn(self):
+        import httpx
+        from groq import RateLimitError
+        self.client.post('/game/init', json={'session_id': 'test-player', 'action': 'new', 'world': 'City'})
+        async def limited(*args):
+            raise RateLimitError('limited', response=httpx.Response(429, request=httpx.Request('POST', 'https://api.groq.com')), body=None)
+        with patch.object(game, 'process_game_turn', limited):
+            response = self.client.post('/game/interact', json=self.input)
+        self.assertEqual(response.status_code, 429)
+        self.assertEqual(response.headers['retry-after'], '60')
+        self.assertIn('free-tier limit', response.json()['detail'])
+        self.assertIsNone(campaign.load('test-player')['memory'])
+
     def test_failed_generation_does_not_advance(self):
         self.client.post('/game/init', json={'session_id': 'test-player', 'action': 'new', 'world': 'City'})
         async def fail(*args): raise RuntimeError('provider unavailable')

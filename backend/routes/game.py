@@ -1,5 +1,6 @@
 # routes.py
 from fastapi import APIRouter, HTTPException, Request
+from groq import RateLimitError
 from services.story_engine import process_game_turn
 from models.schemas import SceneResponse, AgentInput, UserInteraction, GameState, EnvironmentalConditions, ResourceAvailability, InventoryChanges, WorldInfo, CurrentSceneContext, GameProgressContext, LoreEntry, QuestObjective, Character, DialogueLine, InteractiveElement, EnvironmentalDiscovery, ThreatUpdate, AmbientEvent # Import all necessary Pydantic models
 from agents.data_validate_game import parse_json_block, validate_and_fix_response
@@ -415,6 +416,9 @@ Use relationship_changes as per-turn deltas; the server derives persistent relat
         
     except HTTPException:
         raise
+    except RateLimitError:
+        logger.warning("AI provider rate limit reached; campaign progress unchanged")
+        raise HTTPException(429, "The AI provider's free-tier limit was reached. Wait about a minute, then retry. Your saved progress is unchanged.", headers={"Retry-After": "60"})
     except ValueError as e:
         logger.error(f"JSON parsing error for session {input.session_id}: {e}", exc_info=True)
         raise HTTPException(status_code=502, detail="The generated scene was inconsistent. Please retry; no progress was changed.")
