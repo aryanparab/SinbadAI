@@ -101,7 +101,7 @@ Google OAuth callback registration still need to be configured.
 
 ### 1. Backend on Railway
 
-1. Connect this GitHub repository and select the `prod` branch.
+1. Connect this GitHub repository and select the `main` branch.
 2. Set the service **Root Directory** to `/backend`. Railway detects `Dockerfile`;
    configuration lives in `backend/railway.json` (select `/backend/railway.json`
    as the config file path if the dashboard does not detect it).
@@ -130,7 +130,7 @@ Railway references: [Dockerfiles](https://docs.railway.com/builds/dockerfiles),
 
 ### 2. Frontend on Vercel
 
-1. Import this repository, select `prod` as the production branch, and set **Root
+1. Import this repository, select `main` as the production branch, and set **Root
    Directory** to `frontend`. Use the Next.js preset and Node 22.
 2. Add the variables below to the Production environment. Use separate values
    for local development; never commit live credentials.
