@@ -6,7 +6,7 @@ from datetime import datetime
 # Core item and inventory models
 class Item(BaseModel):
     name: str
-    quantity: int
+    quantity: int = Field(ge=1)
     description: str
     durability: int = Field(ge=0, le=100)  # 0-100
     item_type: str
@@ -14,7 +14,7 @@ class Item(BaseModel):
 
 class InventoryChange(BaseModel):
     name: str
-    quantity: int
+    quantity: int = Field(ge=1)
     reason: Optional[str] = None
     durability_change: Optional[int] = None
     new_properties: Optional[Dict[str, Any]] = None
@@ -145,7 +145,7 @@ class WorldInfo(BaseModel):
 class UserInteraction(BaseModel):
     """Captures the type and details of user interaction"""
     interaction_type: Literal["narrative_choice", "character_interaction", "item_interaction", "location_interaction", "quest_interaction", "environmental_interaction"]
-    choice_text: str
+    choice_text: str = Field(min_length=1, max_length=2000)
     choice_index: Optional[int] = None
     element_id: Optional[str] = None
     element_type: Optional[str] = None
@@ -195,10 +195,10 @@ class GameProgressContext(BaseModel):
 # Updated AgentInput model
 class AgentInput(BaseModel):
     """Enhanced input model for multi-agent orchestration"""
-    session_id: str
+    session_id: str = Field(min_length=1, max_length=200)
     scenes_completed: int
     user_interaction: UserInteraction
-    player_choice: str  # Legacy field for backward compatibility
+    player_choice: str = Field(min_length=1, max_length=2000)
     current_location: str
     current_world: str
     scene_tag: Optional[str] = None
@@ -215,8 +215,38 @@ class AgentInput(BaseModel):
         extra = "ignore"
         validate_assignment = True
 
+class Mission(BaseModel):
+    id: str = Field(min_length=1, max_length=100)
+    title: str = Field(min_length=1, max_length=120)
+    objective: str = Field(min_length=1, max_length=400)
+    stakes: str = Field(default="", max_length=500)
+    ally_id: str = ""
+
+class EncounterProp(BaseModel):
+    id: str = Field(min_length=1, max_length=80)
+    name: str = Field(min_length=1, max_length=100)
+    description: str = Field(min_length=1, max_length=300)
+    kind: Literal["cover", "mechanism", "cache"]
+    item: Optional[Item] = None
+
+class EncounterSpec(BaseModel):
+    props: List[EncounterProp] = Field(default_factory=list, max_length=3)
+    id: str = Field(min_length=1, max_length=100)
+    kind: Literal["combat", "infiltration", "rescue"]
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=600)
+    enemy_name: str = Field(min_length=1, max_length=120)
+    reward: Optional[Item] = None
+
 # Output model - what comes back from AI
 class SceneResponse(BaseModel):
+    scene_title: str = ""
+    chapter_title: str = ""
+    mission: Optional[Mission] = None
+    encounter: Optional[EncounterSpec] = None
+    choice_stakes: List[str] = Field(default_factory=list)
+    ending_summary: str = ""
+    story_plan: Dict[str, Any] = Field(default_factory=dict)
     scene_tag: str
     location: str
     world: str

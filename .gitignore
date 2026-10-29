@@ -25,3 +25,8 @@ backend/instance/
 
 flyers/*
 .env
+# Generated campaign state and Python bytecode
+**/__pycache__/
+**/*.pyc
+**/campaigns.sqlite3*
+**/agent_context.sqlite3*

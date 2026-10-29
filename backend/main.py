@@ -30,7 +30,7 @@ app.include_router(game.router, prefix='/game')
 # Root endpoint for health checks
 @app.get("/")
 async def root():
-    return {"status": "healthy", "service": "Shadow Council API"}
+    return {"status": "healthy", "service": "Sinbad AI"}
 
 # ⭐ CRITICAL: Bind to 0.0.0.0 for Render
 if __name__ == "__main__":

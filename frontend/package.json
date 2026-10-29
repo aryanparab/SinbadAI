@@ -10,8 +10,8 @@
   },
   "dependencies": {
     "lucide-react": "^0.554.0",
-    "next": "15.3.8",
-    "next-auth": "^4.24.13",
+    "next": "^15.5.28",
+    "next-auth": "^4.24.15",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },
@@ -22,8 +22,11 @@
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",
-    "eslint-config-next": "15.3.4",
+    "eslint-config-next": "^15.5.28",
     "tailwindcss": "^4",
     "typescript": "^5"
+  },
+  "overrides": {
+    "postcss": "8.5.32"
   }
 }

@@ -1,14 +1,13 @@
 'use client';
 
 import { useEffect, useState, useRef } from "react";
-import { useSession } from "next-auth/react";
+import { usePlayerSession } from "@/hooks/usePlayerSession";
 import { useGameContext } from '@/components/GameContext';
 import { useGameMemory } from "@/hooks/useGameMemory";
 
 export const useGameLogic = () => {
-  const { data: session } = useSession();
-  const session_id = session?.user?.email || "guest_session";
-  const { gameData, setGameData } = useGameContext();
+  const session_id = usePlayerSession();
+  const { gameData } = useGameContext();
 
   const [scene, setScene] = useState<SceneResponse | null>(null);
   const [loading, setLoading] = useState(false);
@@ -27,10 +26,13 @@ export const useGameLogic = () => {
   });
 
   // Initialize game memory based on context or loaded data
-  const { gameMemory, initialized } = useGameMemory(scene);
+  const { gameMemory, initialized, replaceMemory } = useGameMemory(scene);
   
   const [sessionStartTime, setSessionStartTime] = useState(Date.now());
   const hasLoadedInitialScene = useRef(false);
+  const inFlight = useRef(false);
+  const lastEncounterAction = useRef<{action: string; itemName?: string} | null>(null);
+  const lastAction = useRef<[string, UserInteraction["interaction_type"], string?, string?, number?]>(["Start Game", "narrative_choice"]);
 
   // Create default structures to prevent backend errors
   const createDefaultWorldInfo = (): WorldInfo => ({
@@ -215,6 +217,17 @@ useEffect(() => {
   }
 }, [initialized, gameMemory, gameData?.worldName]); // Updated dependencies
 
+  async function restoreLatestSnapshot() {
+    const res = await fetch("/api/init", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({session_id, action: "load"})});
+    if (!res.ok) return false;
+    const data = await res.json();
+    if (data.status !== "loaded") return false;
+    replaceMemory(data.latest_memory_data);
+    setScene(convertGameMemoryToSceneResponse(data.latest_memory_data));
+    setGameProgress(previous => ({...previous, scenes_completed: data.latest_memory_data.scenes_completed, play_time_minutes: data.latest_memory_data.play_time_minutes}));
+    return true;
+  }
+
   const handleChoice = async (
     choiceText: string,
     interactionType: UserInteraction['interaction_type'],
@@ -222,7 +235,10 @@ useEffect(() => {
     elementType?: string,
     choiceIndex?: number
   ) => {
-    if (loading) return;
+    if (inFlight.current || !session_id || scene?.game_state.story_flags.is_complete) return;
+    inFlight.current = true;
+    lastEncounterAction.current = null;
+    lastAction.current = [choiceText, interactionType, elementId, elementType, choiceIndex];
 
     setLoading(true);
     setError(null);
@@ -245,8 +261,8 @@ useEffect(() => {
       const currentSceneContext: CurrentSceneContext = gameMemory?.current_scene ? 
         convertCurrentSceneToContext(gameMemory.current_scene, gameMemory) : 
         createDefaultCurrentScene();
-      const currentGameState: GameState = gameMemory?.game_state || createDefaultGameState();
-      const currentInventory: Item[] = gameMemory?.inventory || [];
+      const currentGameState: GameState = scene?.game_state || gameMemory?.game_state || createDefaultGameState();
+      const currentInventory: Item[] = scene?.current_inventory || gameMemory?.inventory || [];
 
       const userInteraction: UserInteraction = {
         interaction_type: interactionType,
@@ -274,7 +290,7 @@ useEffect(() => {
         player_choice: choiceText,
         current_location: gameMemory?.location || "starting_area",
         current_world: gameMemory?.world || gameData?.worldName || "default_world",
-        scene_tag: gameMemory?.scene_tag || "start",
+        scene_tag: scene?.scene_tag || gameMemory?.scene_tag || "start",
         present_characters: safeGetArray(currentSceneContext.characters).map(c => c.id),
         current_scene: currentSceneContext,
         current_inventory: currentInventory,
@@ -283,7 +299,7 @@ useEffect(() => {
         recent_history: safeGetArray(gameMemory?.history),
         agent_hints: {
           player_seems_to_prefer: safeGetObject(gameMemory?.player_preferences, {}),
-          story_pacing_hint: updatedScenesCompleted > 50 ? "escalate_toward_climax" : "build_tension",
+          story_pacing_hint: "Follow the server campaign plan",
           interaction_pattern: interactionType,
           last_major_choice: gameMemory?.player_choices_history?.slice(-1)[0] || null,
           world_theme: gameMemory?.world_info?.theme || "survival",
@@ -292,7 +308,7 @@ useEffect(() => {
         emergency_flags: {
           low_health: false,
           high_threat: safeGetArray(currentSceneContext.threat_updates).some(t => t.immediate_danger && t.escalation_level > 7),
-          story_climax_approaching: updatedScenesCompleted > 80,
+          story_climax_approaching: updatedScenesCompleted >= Number(scene?.game_state.story_flags.total_turns || gameData?.totalTurns || 30) * .8,
           player_stuck: false,
           critical_resources_low: currentGameState.resource_availability?.food === "critical" || currentGameState.resource_availability?.water === "critical"
         }
@@ -306,10 +322,13 @@ useEffect(() => {
         body: JSON.stringify(requestBody)
       });
 
+      if (response.status === 409 && await restoreLatestSnapshot()) return;
       if (!response.ok) {
         const errorText = await response.text();
         console.error("API Error Response:", errorText);
-        throw new Error(`HTTP error! status: ${response.status}, message: ${errorText}`);
+        let message = "The story could not continue. Please retry.";
+        try { message = JSON.parse(errorText).detail || message; } catch {}
+        throw new Error(message);
       }
 
       const rawData = await response.json();
@@ -361,7 +380,7 @@ useEffect(() => {
       // Update game progress with safe property access
       setGameProgress(prevProgress => ({
         ...prevProgress,
-        scenes_completed: updatedScenesCompleted,
+        scenes_completed: Number(data.game_state.story_flags.turn),
         play_time_minutes: updatedPlayTime,
         story_escalation_level: data.game_state?.story_flags?.story_escalation_level || prevProgress.story_escalation_level,
         tension_level: data.game_state?.story_flags?.tension_level || prevProgress.tension_level,
@@ -374,40 +393,36 @@ useEffect(() => {
       }));
 
       // Update gameData context after successful interaction
-      setGameData({ 
-        ...gameData,
-        loaded: data 
-      });
+      // The memory hook persists the canonical scene after this render.
 
     } catch (err) {
       console.error("Error fetching scene:", err);
       const errorMessage = err instanceof Error ? err.message : "An unexpected error occurred";
       setError(`Failed to process choice: ${errorMessage}`);
     } finally {
+      inFlight.current = false;
       setLoading(false);
     }
   };
 
-  // Sync frontend memory with error handling
-  useEffect(() => {
-    if (!gameMemory) return;
+  const playEncounter = async (action: string, itemName?: string) => {
+    const encounter = scene?.game_state.story_flags.encounter;
+    if (!encounter || inFlight.current) return;
+    inFlight.current = true; setLoading(true); setError(null);
+    lastEncounterAction.current = {action, itemName};
+    try {
+      const res = await fetch("/api/encounter", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({session_id, encounter_id: encounter.id, expected_round: encounter.round, action, item_name: itemName || ""})});
+      const data = await res.json();
+      if (res.status === 409 && await restoreLatestSnapshot()) return;
+      if (!res.ok) throw new Error(data.detail || "The action could not be resolved.");
+      replaceMemory(data.memory);
+      setScene(convertGameMemoryToSceneResponse(data.memory));
+    } catch (e) { setError(e instanceof Error ? e.message : "Please retry."); }
+    finally { inFlight.current = false; setLoading(false); }
+  };
 
-    const syncFrontendMemory = () => {
-      try {
-        setGameData({ 
-          ...gameData,
-          loaded: gameMemory 
-        });
-        console.log("Frontend memory synced.");
-      } catch (err) {
-        console.error("Failed to sync frontend memory:", err);
-        setError("Failed to sync game state");
-      }
-    };
-
-    const handler = setTimeout(syncFrontendMemory, 1000);
-    return () => clearTimeout(handler);
-  }, [gameMemory, gameProgress]);
+  // Local memory is saved by useGameMemory. Avoid a second delayed writer
+  // racing with a newly started campaign or a freshly resumed snapshot.
 
   // Reset error when scene changes
   useEffect(() => {
@@ -418,12 +433,16 @@ useEffect(() => {
 
   return { 
     scene, 
+    journal: gameMemory?.history || [],
+    lore: gameMemory?.lore_collection || [],
     loading, 
     error, 
     gameProgress, 
     initialized, 
     handleChoice,
+    playEncounter,
     // Additional utility functions
+    retry: () => lastEncounterAction.current ? playEncounter(lastEncounterAction.current.action, lastEncounterAction.current.itemName) : handleChoice(lastAction.current[0], lastAction.current[1], lastAction.current[2], lastAction.current[3], lastAction.current[4]),
     resetError: () => setError(null)
   };
 };

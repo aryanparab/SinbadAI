@@ -1,18 +1,19 @@
 # routes.py
 from fastapi import APIRouter, HTTPException, Request
-from agents.agents import process_game_turn, memory
+from services.story_engine import process_game_turn
 from models.schemas import SceneResponse, AgentInput, UserInteraction, GameState, EnvironmentalConditions, ResourceAvailability, InventoryChanges, WorldInfo, CurrentSceneContext, GameProgressContext, LoreEntry, QuestObjective, Character, DialogueLine, InteractiveElement, EnvironmentalDiscovery, ThreatUpdate, AmbientEvent # Import all necessary Pydantic models
 from agents.data_validate_game import parse_json_block, validate_and_fix_response
-from routes.memory_service import (
-    add_game_memory, 
-    get_user_memories, 
-    clear_user_memories, 
-    get_memory_summary
-)
 import logging
 import json
 from datetime import datetime
 import os
+from routes import campaign, encounters
+from pydantic import BaseModel
+import asyncio
+import uuid
+from collections import defaultdict
+locks = defaultdict(asyncio.Lock)
+
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -190,7 +191,7 @@ PLAYER INTERACTION CONTEXT:
 Interaction Type: {interaction_type}
 Player Choice: "{choice_text}"{element_info}
 Previous Scene Tag: {input_data.scene_tag or "Game Start"}
-Total Scenes Completed: {scenes_completed} out of 50
+Total Scenes Completed: {scenes_completed} (see campaign contract for total)
 
 PREVIOUS SCENE NARRATION (maintain prose tone and continuity from this):
 {prev_narration_excerpt}
@@ -275,12 +276,91 @@ Please coordinate your specialist agents to create a rich, interactive scene tha
 
 @router.post("/interact", response_model=SceneResponse)
 async def interact(input: AgentInput):
+    async with locks[input.session_id]:
+        return await _interact(input)
+
+async def _interact(input: AgentInput):
     """
     Main interaction endpoint for the RPG system
     """
     try:
-        # Build comprehensive game context
-        game_context = create_game_context(input)
+        saved = campaign.load(input.session_id)
+        if not saved:
+            raise HTTPException(409, "Start a new campaign first.")
+        previous = saved.get("memory")
+        total = saved["total_turns"]
+        completed = previous["scenes_completed"] if previous else 0
+        if completed >= total:
+            raise HTTPException(409, "This story is complete. Start a new adventure.")
+        active_encounter = (previous or {}).get("game_state", {}).get("story_flags", {}).get("encounter")
+        turn = completed + 1
+        input.current_world = saved["world"]
+        if previous:
+            if input.scene_tag != previous["scene_tag"]:
+                raise HTTPException(409, "This scene has already advanced. Reload to restore the latest turn.")
+            input.current_inventory = previous["inventory"]
+            input.game_state = previous["game_state"]
+            input.current_location = previous["location"]
+            input.scene_tag = previous["scene_tag"]
+            current = dict(previous["current_scene"])
+            current.update(scene_tag=previous["scene_tag"], location=previous["location"], world=previous["world"], narrative_options=current.pop("options"), new_objectives=[], completed_objectives_this_scene=[])
+            input.current_scene = CurrentSceneContext(**current)
+            input.recent_history = previous["history"]
+        else:
+            input.current_inventory = []
+            input.game_state = GameState(
+                relationships={}, revealed_secrets=[], completed_objectives=[], failed_objectives=[], active_objectives=[],
+                location_flags={}, story_flags={}, reputation={}, major_events=[],
+                environmental_conditions=EnvironmentalConditions(weather="clear", visibility="normal", temperature="comfortable", hazard_level=0),
+                resource_availability=ResourceAvailability(food="unknown", water="unknown", medical_supplies="unknown", shelter_materials="unknown", fuel="unknown", tools="unknown"),
+            )
+            input.current_scene.characters = []
+            input.current_scene.narration_text = ""
+            input.current_location = "Opening scene"
+            input.recent_history = []
+        if input.user_interaction.element_type == "inventory_item":
+            selected = next((i for i in input.current_inventory if i.name.casefold() == (input.user_interaction.element_id or "").casefold()), None)
+            if not selected or selected.durability == 0:
+                raise HTTPException(400, "That item is unavailable or broken.")
+        if previous and input.user_interaction.element_type == "interactive_element":
+            element = next((e for e in input.current_scene.interactive_elements if e.id == input.user_interaction.element_id), None)
+            if not element:
+                raise HTTPException(400, "That interaction is no longer available.")
+            available = {i.name.casefold() for i in input.current_inventory if i.durability > 0}
+            if any(name.casefold() not in available for name in element.requires_items):
+                raise HTTPException(400, "You do not have the required items.")
+        input.game_progress.scenes_completed = turn
+        input.scenes_completed = turn
+        plan = saved.get("plan", {})
+        # Supply concise, authoritative continuity instead of a second creative prompt.
+        game_context = json.dumps({
+            "world": input.current_world, "location": input.current_location,
+            "player_decision": input.player_choice,
+            "previous_narration": input.current_scene.narration_text,
+            "characters": [c.model_dump() for c in input.current_scene.characters],
+            "state": input.game_state.model_dump(), "history": input.recent_history[-8:],
+        }, ensure_ascii=False)
+        game_context += f"""
+CAMPAIGN CONTRACT (overrides generic pacing):
+Turn {turn} of exactly {total}; phase: {campaign.phase(turn, total)}.
+Each successful player approach consumes one story turn, including the opening. Resolve the attempted action in the narrative; never require abstract tactical progress.
+If a legacy encounter is active, interpret the decision as an approach to THAT obstacle, not an aftermath choice. Resolve or materially transform it; do not repeat it unchanged.
+Persistent outline: {json.dumps(plan)}
+On the opening turn return story_plan with central_conflict, stakes, key_characters,
+setup, midpoint_reversal, climax, and possible_endings. Plan the whole story before narrating.
+Keep that outline across turns; adapt the outcome to actual player decisions and inventory.
+Resolve the central conflict and show consequences ON turn {total}. No cliffhanger or new quest then.
+On earlier turns do not end the campaign; bring existing threads toward the planned climax.
+Inventory ledger is authoritative: {json.dumps([i.model_dump() for i in input.current_inventory])}
+added_items quantities are gains; removed_items quantities are amounts consumed/lost;
+modified_items change durability/properties only. Never remove an unowned item.
+Return each item's full schema in every delta. current_inventory is computed by the server.
+An item interaction must have a concrete consequence consistent with its description.
+Only offer actions whose required items are available. Keep quests and relationships continuous.
+An offered item is not an acquired item: add it only when this narration explicitly completes its acquisition.
+Never offer to acquire an item already acquired this turn. Describe consumption and damage when applying their deltas.
+Use relationship_changes as per-turn deltas; the server derives persistent relationship levels.
+"""
 
         logger.info(
             f"Processing interaction | session={input.session_id} "
@@ -289,50 +369,95 @@ async def interact(input: AgentInput):
         )
         logger.debug(f"Player choice: {input.player_choice}")
 
-        # Get response from coordinated game agents
-        raw_result_str = await process_game_turn(game_context, input.session_id)
-        logger.debug(f"Raw agent response length: {len(raw_result_str)}")
+        for attempt in range(2):
+            if not campaign.reserve_generation():
+                raise HTTPException(429, "Today's demo generation limit has been reached. Your saved adventure and tactical encounters remain available.")
+            raw_result_str = await process_game_turn(game_context, f"{input.session_id}:{saved.get('campaign_key', 'legacy')}")
+            try:
+                result_dict = parse_json_block(raw_result_str)
+                if not isinstance(result_dict.get("narration_text"), str) or not isinstance(result_dict.get("options"), list):
+                    raise ValueError("The director did not return a playable scene")
+                result_dict = validate_and_fix_response(result_dict)
+                scene_response = SceneResponse(**result_dict)
+                break
+            except ValueError:
+                if attempt:
+                    raise
+                # One format repair is included in the shared daily quota.
+                game_context += "\nFORMAT CORRECTION: Your previous response was not one valid scene object. Return exactly ONE JSON object with narration_text, options and all required scene fields. Do not return a list, primitive, outline alone, or encoded JSON string. Keep the same world, action and story contract."
 
-        # Parse the JSON string result
-        result_dict = parse_json_block(raw_result_str)
-        logger.debug(f"Parsed keys: {list(result_dict.keys())} | scene_tag={result_dict.get('scene_tag')}")
-
-        # Validate and fix the response
-        result_dict = validate_and_fix_response(result_dict)
-        logger.debug(
-            f"Validated | scene_tag={result_dict.get('scene_tag')} "
-            f"narration_len={len(result_dict.get('narration_text', ''))} "
-            f"chars={len(result_dict.get('characters', []))} "
-            f"options={len(result_dict.get('options', []))}"
-        )
-
-        # Create scene response Pydantic model
-        scene_response = SceneResponse(**result_dict)
-       
+        if scene_response.scene_tag.startswith(("error", "fallback")):
+            raise HTTPException(502, "The story engine could not generate a scene. Retry; your turn is unchanged.")
+        if not plan:
+            plan = scene_response.story_plan
+            if not plan or not all(plan.get(k) for k in ("central_conflict", "climax", "possible_endings")):
+                raise HTTPException(502, "The story engine did not return a complete campaign plan. Please retry.")
+        if turn == total and not scene_response.ending_summary.strip():
+            raise HTTPException(502, "The director did not finish the epilogue. Retry; your final turn is unchanged.")
+        scene_response.scene_tag = f"turn_{turn}"
+        scene_response.world = saved["world"]
+        scene_response = campaign.reconcile(input, scene_response, turn, total, plan)
         # Prepare memory data
         memory_data = create_memory_data(input, scene_response)
         
-        # Add memory using the service function
-        memory_success = add_game_memory(memory, input.session_id, memory_data)
-        
-        if memory_success:
-            logger.info(f"Successfully added memory for session {input.session_id}")
-        else:
-            logger.warning(f"Failed to add memory for session {input.session_id}")
-        
+        if previous:
+            memory_data["lore_collection"] = list({entry["id"]: entry for entry in previous.get("lore_collection", []) + memory_data["lore_collection"]}.values())
+            memory_data["discovered_locations"] = list(dict.fromkeys(previous.get("discovered_locations", []) + memory_data["discovered_locations"]))
+            memory_data["met_characters"] = list(dict.fromkeys(previous.get("met_characters", []) + memory_data["met_characters"]))
+            memory_data["player_choices_history"] = previous.get("player_choices_history", []) + memory_data["player_choices_history"][-1:]
+        campaign.save(input.session_id, {**saved, "plan": plan, "memory": memory_data})
         logger.info(f"Successfully processed interaction for session {input.session_id}")
+        scene_response.story_plan = {}
+        scene_response.game_state.story_flags.pop("story_plan", None)
         return scene_response
         
+    except HTTPException:
+        raise
     except ValueError as e:
         logger.error(f"JSON parsing error for session {input.session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail=f"Response parsing error: {str(e)}")
+        raise HTTPException(status_code=502, detail="The generated scene was inconsistent. Please retry; no progress was changed.")
         
     except Exception as e:
         logger.error(f"Unexpected error for session {input.session_id}: {e}", exc_info=True)
         
         # Return a safe fallback response
-        fallback_response_dict = create_fallback_response(input)
-        return SceneResponse(**fallback_response_dict)
+        raise HTTPException(502, "The story engine is unavailable. Your progress is unchanged; please retry.")
+
+
+class EncounterAction(BaseModel):
+    session_id: str
+    encounter_id: str
+    expected_round: int
+    action: str
+    item_name: str = ""
+
+@router.post("/encounter")
+async def play_encounter(req: EncounterAction):
+    async with locks[req.session_id]:
+        saved = campaign.load(req.session_id)
+        if not saved or not saved.get("memory"):
+            raise HTTPException(404, "No campaign found.")
+        snapshot = saved["memory"]
+        flags = snapshot["game_state"]["story_flags"]
+        encounter = flags.get("encounter")
+        if not encounter or encounter["id"] != req.encounter_id:
+            raise HTTPException(409, "This encounter is no longer available.")
+        if encounter["round"] != req.expected_round:
+            raise HTTPException(409, "This action was already resolved. Reload to see the result.")
+        try:
+            encounter, inventory = encounters.resolve(encounter, req.action, snapshot["inventory"], req.item_name)
+        except ValueError as exc:
+            raise HTTPException(400, str(exc))
+        snapshot["inventory"] = inventory
+        flags["encounter"] = encounter
+        snapshot["scene_tag"] = f"turn_{snapshot['scenes_completed']}_enc_{encounter['round']}"
+        snapshot["last_updated"] = datetime.now().isoformat()
+        if encounter["status"] != "active":
+            outcome = {"id": encounter["id"], "title": encounter["title"], "status": encounter["status"], "health": encounter["health"], "reward_claimed": encounter["reward_claimed"]}
+            flags["encounter_history"] = flags.get("encounter_history", []) + [outcome]
+            snapshot["history"] = (snapshot["history"] + [f"Encounter {encounter['title']}: {encounter['status']}. {encounter['log'][-1]}"])[-20:]
+        campaign.save(req.session_id, saved)
+        return {"memory": snapshot}
 
 
 @router.post("/init")
@@ -345,165 +470,28 @@ async def init_game(request: Request):
     action = body.get("action")
     world = body.get("world", "default")
 
-    
+
+    if not isinstance(session_id, str) or not session_id or len(session_id) > 200:
+        raise HTTPException(400, "A valid session ID is required.")
     if action == "new":
-        # Clear memories using service function
-        clear_success = clear_user_memories(memory, session_id)
-       
-        if clear_success:
-            logger.info(f"New game started for session {session_id}, world: {world}")
-            return {"status": "cleared", "world": world, "message": "New game started."}
-        else:
-            logger.error(f"Failed to clear previous game data for session {session_id}")
-            return {"status": "error", "message": "Failed to clear previous game data."}
-    
+        total = body.get("total_turns", 30)
+        if type(total) is not int or not 5 <= total <= 60:
+            raise HTTPException(400, "Choose 5 to 60 turns.")
+        if not isinstance(world, str) or not world.strip() or len(world) > 1200:
+            raise HTTPException(400, "Enter a world name of at most 1200 characters.")
+        async with locks[session_id]:
+            campaign.save(session_id, {"world": world.strip(), "total_turns": total, "campaign_key": str(uuid.uuid4()), "plan": {}, "memory": None})
+        return {"status": "cleared", "world": world.strip(), "total_turns": total}
     elif action == "load":
-        # Check if user has memories
-        if not get_user_memories(memory, session_id):
-            return {"status": "no_memory", "message": "No saved game found."}
-        
-        # Get user memories using service function
-        user_memories = get_user_memories(memory, session_id)
-        
-        if user_memories:
-            # Get the latest memory for scene state
-            # Assuming user_memories is ordered by last_updated descending
-            latest_memory_record = user_memories[0]
-            try:
-                raw = latest_memory_record.to_dict().get('memory', '{}')
-                latest_memory_data = json.loads(raw) if isinstance(raw, str) else raw
-            except (json.JSONDecodeError, AttributeError):
-                latest_memory_data = {}
-           
-            return {
-                "status": "loaded",
-                "message": "Game loaded from memory.",
-                "memory_summary": [{"memory": m.memory, "last_updated": str(m.last_updated)} for m in user_memories],
-                "scene_state": latest_memory_data.get('world'), # This might need to be more specific to what frontend expects
-                "latest_memory_data": latest_memory_data # Return the full latest memory data
-            }
-        else:
-            return {"status": "no_memory", "message": "No saved game found."}
-    
-    else:
-        raise HTTPException(status_code=400, detail="Invalid action. Use 'new' or 'load'.")
+        saved = campaign.load(session_id)
+        if saved and saved.get("memory"):
+            return {"status": "loaded", "latest_memory_data": saved["memory"], "scene_state": saved["memory"]["current_scene"]["narration_text"]}
+        return {"status": "no_memory"}
+
+    raise HTTPException(400, "Invalid action. Use new or load.")
 
 
 @router.get("/health")
 async def health_check():
     """Health check endpoint"""
-    return {"status": "healthy", "agents": "ready"}
-
-
-@router.get("/memory/{session_id}")
-async def get_session_memory(session_id: str):
-    """
-    Get memory summary for a specific session
-    """
-    try:
-        if not get_user_memories(memory, session_id):
-            return {"status": "no_memory", "message": "No memories found for this session."}
-        
-        # get_memory_summary returns a str (joined narrative summaries), not a list
-        memory_summary = get_memory_summary(memory, session_id)
-        user_memories = get_user_memories(memory, session_id)
-        
-        return {
-            "status": "success",
-            "session_id": session_id,
-            "memory_count": len(user_memories),
-            "memory_summary": memory_summary,
-            "memories": [{"memory": m.memory, "last_updated": str(m.last_updated)} for m in user_memories]
-        }
-        
-    except Exception as e:
-        logger.error(f"Error retrieving memory for session {session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to retrieve memory.")
-
-
-@router.delete("/memory/{session_id}")
-async def clear_session_memory(session_id: str):
-    """
-    Clear all memories for a specific session
-    """
-    try:
-        clear_success = clear_user_memories(memory, session_id)
-        
-        if clear_success:
-            return {"status": "success", "message": f"Cleared all memories for session {session_id}"}
-        else:
-            logger.error(f"Failed to clear memories for session {session_id}")
-            raise HTTPException(status_code=500, detail="Failed to clear memories.")
-            
-    except Exception as e:
-        logger.error(f"Error clearing memory for session {session_id}: {e}", exc_info=True)
-        raise HTTPException(status_code=500, detail="Failed to clear memory.")
-
-
-def create_fallback_response(input: AgentInput) -> dict:
-    """
-    Create a fallback response when the main processing fails.
-    Returns a dictionary that can be used to construct a SceneResponse Pydantic model.
-    """
-    default_world_info = WorldInfo(
-        name=input.current_world or "Unknown World",
-        theme="Uncertainty",
-        description="A world shrouded in error.",
-        key_locations=[],
-        dominant_factions=[],
-        major_threats=[],
-        cultural_notes=[],
-        historical_timeline=[]
-    )
-
-    default_location_details = {
-        "exits": [],
-        "hidden_areas": [],
-        "resource_nodes": [],
-        "safety_level": 5
-    }
-
-    fallback_scene_response_dict = {
-        "scene_tag": f"fallback_{input.session_id}",
-        "location": input.current_location or "unknown",
-        "world": input.current_world or "unknown",
-        "narration_text": f"Something unexpected happens as you {input.player_choice.lower()}. The world around you shifts slightly, and you sense new possibilities emerging. An error occurred.",
-        "dialogue": [],
-        "characters": [],
-        "options": ["Look around carefully", "Take a moment to think", "Continue forward"],
-        "game_state": GameState(
-            relationships={},
-            revealed_secrets=[],
-            completed_objectives=[],
-            failed_objectives=[],
-            active_objectives=[],
-            location_flags={},
-            story_flags={},
-            reputation={},
-            major_events=[],
-            environmental_conditions=EnvironmentalConditions(),
-            resource_availability=ResourceAvailability()
-        ).model_dump(),
-        "inventory_changes": InventoryChanges(
-            added_items=[],
-            removed_items=[],
-            modified_items=[]
-        ).model_dump(),
-        "current_inventory": [item.model_dump() for item in input.current_inventory],
-        "mood_atmosphere": "uncertain",
-        "history_entry": "An unexpected error occurred, leading to a fallback scene.",
-        "relationship_changes": {},
-        "new_secrets": [],
-        "new_objectives": [],
-        "completed_objectives_this_scene": [],
-        "interactive_elements": [],
-        "environmental_discoveries": [],
-        "threat_updates": [],
-        "ambient_events": [],
-        "discovered_lore": [],
-        "world_info": default_world_info.model_dump(),
-        "location_details": default_location_details
-    }
-    
-    # Validate and fix the fallback response to ensure it conforms to the schema
-    return validate_and_fix_response(fallback_scene_response_dict)
+    return {"status": "healthy", "engine": "ready"}

@@ -1,79 +1,43 @@
 'use client';
 
 import { useEffect, useState } from "react";
-import { useSession } from "next-auth/react";
+import { usePlayerSession } from "@/hooks/usePlayerSession";
 import { useGameContext } from "@/components/GameContext"; // adjust path as needed
 
 
 export function useGameMemory(scene: SceneResponse | null) {
-  const { data: session } = useSession();
-  const session_id = session?.user?.email || "guest_session";
+  const session_id = usePlayerSession();
   const { gameData, setGameData } = useGameContext();
 
   const [gameMemory, setGameMemory] = useState<GameMemory | null>(null);
   const [initialized, setInitialized] = useState(false);
 
-  // Load memory from localStorage first, then context, then server
+  // The server owns saves. Browser storage is only an offline fallback.
   useEffect(() => {
-    if (!initialized) {
-      // Priority 1: Check localStorage first (for refresh scenarios)
-      const local = localStorage.getItem("loadedMemory");
-      if (local) {
-        try {
-          const parsed = JSON.parse(local);
-          console.log("Loading game memory from localStorage");
-          setGameMemory(parsed);
-          setGameData({ ...gameData, loaded: parsed });
-          setInitialized(true);
-          return;
-        } catch (error) {
-          console.error("Failed to parse localStorage memory:", error);
-          localStorage.removeItem("loadedMemory"); // Clear corrupted data
-        }
-      }
-
-      // Priority 2: Check context if localStorage is empty
-      if (gameData?.loaded) {
-        console.log("Loading game memory from context");
-        setGameMemory(gameData.loaded);
-        // Save to localStorage for future refreshes
-        localStorage.setItem("loadedMemory", JSON.stringify(gameData.loaded));
-        setInitialized(true);
-        return;
-      }
-
-      // Priority 3: Try loading from server if nothing in local or context
-      const loadFromServer = async () => {
-        try {
-          console.log("Attempting to load game memory from server");
-          const res = await fetch("/api/init", {
-            method: "POST",
-            headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ session_id, action: "load" }),
-          });
-          const data = await res.json();
-          if (data.status === "loaded") {
-            const memory = data.latest_memory_data;
-            console.log("Loaded game memory from server");
-            setGameMemory(memory);
-            setGameData({ ...gameData, loaded: memory });
-            localStorage.setItem("loadedMemory", JSON.stringify(memory));
-          } else {
-            console.log("No existing memory found, will wait for new game to start");
-            // DON'T create default memory here - let the game logic handle new games
-            setGameMemory(null);
-          }
-        } catch (error) {
-          console.error("Failed to load memory from server:", error);
-          // DON'T create default memory here either - let the game logic handle it
-          setGameMemory(null);
-        }
-        setInitialized(true);
-      };
-
-      loadFromServer();
+    if (!session_id || initialized) return;
+    if (gameData?.worldName && !gameData?.loaded) {
+      setGameMemory(null); setInitialized(true); return;
     }
-  }, [initialized, gameData, session_id, setGameData]);
+    let cancelled = false;
+    const restore = async () => {
+      let snapshot: GameMemory | null = null;
+      try {
+        const res = await fetch("/api/init", {method: "POST", headers: {"Content-Type": "application/json"}, body: JSON.stringify({session_id, action: "load"})});
+        if (!res.ok) throw new Error("Save service unavailable");
+        const data = await res.json();
+        if (data.status === "loaded") snapshot = data.latest_memory_data;
+        else localStorage.removeItem("loadedMemory");
+      } catch {
+        try {
+          const local = JSON.parse(localStorage.getItem("loadedMemory") || "null");
+          if (local?.session_id === session_id) snapshot = local;
+        } catch { localStorage.removeItem("loadedMemory"); }
+      }
+      if (!cancelled) { setGameMemory(snapshot); setInitialized(true); }
+    };
+    restore();
+    return () => { cancelled = true; };
+  }, [initialized, gameData, session_id]);
 
   // Helper function to create default memory structure (only called when needed)
   const createDefaultMemory = (): GameMemory => {
@@ -184,6 +148,7 @@ export function useGameMemory(scene: SceneResponse | null) {
         prevMemory = createDefaultMemory();
       }
 
+      if (prevMemory.scene_tag === scene.scene_tag) return prevMemory;
       const newMemory: GameMemory = {
         ...prevMemory,
         session_id,
@@ -210,8 +175,8 @@ export function useGameMemory(scene: SceneResponse | null) {
           world_info: scene.world_info,
           location_details: scene.location_details
         },
-        play_time_minutes: prevMemory.play_time_minutes,
-        scenes_completed: prevMemory.scenes_completed + 1, // Increment scenes completed
+        play_time_minutes: Number(scene.game_state.story_flags.play_time_minutes ?? prevMemory.play_time_minutes),
+        scenes_completed: Number(scene.game_state.story_flags.turn ?? prevMemory.scenes_completed),
         discovered_locations: Array.from(new Set([...(prevMemory.discovered_locations || []), scene.location].filter(Boolean))),
         met_characters: Array.from(new Set([...(prevMemory.met_characters || []), ...(scene.characters || []).map(c => c.id)].filter(Boolean))),
         lore_collection: Array.from(new Set([...(prevMemory.lore_collection || []), ...(scene.discovered_lore || [])].map(lore => JSON.stringify(lore)))).map(str => JSON.parse(str)),
@@ -241,19 +206,5 @@ export function useGameMemory(scene: SceneResponse | null) {
     }
   }, [gameMemory, initialized]);
 
-  // Cleanup function to save memory before component unmounts
-  useEffect(() => {
-    return () => {
-      if (gameMemory) {
-        try {
-          localStorage.setItem("loadedMemory", JSON.stringify(gameMemory));
-          console.log("Game memory saved on cleanup");
-        } catch (error) {
-          console.error("Failed to save memory on cleanup:", error);
-        }
-      }
-    };
-  }, [gameMemory]);
-
-  return { gameMemory, initialized, initializeNewGameMemory };
+  return { gameMemory, initialized, initializeNewGameMemory, replaceMemory: (snapshot: GameMemory) => setGameMemory(snapshot) };
 }

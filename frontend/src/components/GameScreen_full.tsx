@@ -129,7 +129,10 @@ export default function GameScreen() {
       relationship_changes: scene.relationship_changes || {},
       new_secrets: scene.new_secrets || [],
       new_objectives: scene.new_objectives || [],
-      completed_objectives_this_scene: scene.completed_objectives_this_scene || []
+      completed_objectives_this_scene: scene.completed_objectives_this_scene || [],
+      discovered_lore: scene.discovered_lore || [],
+      world_info: scene.world_info,
+      location_details: scene.location_details
     } : {
       scene_tag: "game_start",
       location: "",
@@ -146,7 +149,10 @@ export default function GameScreen() {
       relationship_changes: {},
       new_secrets: [],
       new_objectives: [],
-      completed_objectives_this_scene: []
+      completed_objectives_this_scene: [],
+      discovered_lore: [],
+      world_info: {name: "Unknown", theme: "adventure", description: "", key_locations: [], dominant_factions: [], major_threats: [], cultural_notes: [], historical_timeline: []},
+      location_details: {exits: [], hidden_areas: [], resource_nodes: [], safety_level: 5}
     };
 
     // Enhanced agent input with comprehensive context

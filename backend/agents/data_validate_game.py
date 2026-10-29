@@ -893,63 +893,34 @@ def validate_and_fix_response(result_dict):
 # Additional helper function for parsing JSON blocks
 import re
 
-def fix_json_common_errors(json_str: str) -> str:
-    """
-    Attempts to fix common issues in JSON output from Gemma-based models:
-    - Unescaped internal double quotes
-    - Wrong contractions like he"s
-    - Smart quotes and invalid unicode
-    - Trailing commas
-    """
-    # Replace smart quotes with plain quotes
-    json_str = json_str.replace("'", "'").replace("'", "'").replace(""", '"').replace(""", '"').replace("'", "'").replace("'", "'")
-
-    # Fix common contraction issues (e.g., He"s → He's)
-    json_str = re.sub(r'\b(\w+)"s\b', r"\1's", json_str)
-
-    # Escape unescaped quotes inside long text fields
-    def escape_quotes_inside_strings(match):
-        key = match.group(1)
-        value = match.group(2)
-        # Escape quotes inside the value
-        fixed_value = value.replace('\\"', '"')  # unescape safe escapes first
-        fixed_value = fixed_value.replace('"', '\\"')
-        return f'"{key}": "{fixed_value}"'
-
-    # Apply to likely text fields
-    json_str = re.sub(r'"(narration_text|history_entry|backstory|content|description|text)"\s*:\s*"([^"]*?)"', escape_quotes_inside_strings, json_str)
-
-    # Remove trailing commas in objects and arrays
-    json_str = re.sub(r',\s*([\]}])', r'\1', json_str)
-
-    # Remove newline control characters
-    json_str = json_str.replace("\r", "").replace("\n", "\\n")
-
-    return json_str
-
 def parse_json_block(raw_result_str):
+    """Decode JSON without altering quoted dialogue or escaped newlines."""
     import json
-    import re
-
-    json_pattern = r'```json\s*(\{.*?\})\s*```'
-    match = re.search(json_pattern, raw_result_str, re.DOTALL)
-
-    if match:
-        json_str = match.group(1)
-    else:
-        json_pattern = r'(\{.*\})'
-        match = re.search(json_pattern, raw_result_str, re.DOTALL)
-        if not match:
-            raise ValueError("No JSON found in response")
-        json_str = match.group(1)
-
+    text = raw_result_str.strip()
+    if text.startswith("```"):
+        text = re.sub(r"^```(?:json)?\s*", "", text)
+        text = re.sub(r"\s*```$", "", text)
     try:
-        return json.loads(json_str)
+        result = json.loads(text)
     except json.JSONDecodeError:
-        json_str = fix_json_common_errors(json_str)
+        start = text.find("{")
+        if start < 0:
+            raise ValueError("The story engine did not return JSON")
         try:
-            return json.loads(json_str)
-        except json.JSONDecodeError as e:
-            snippet = json_str[:500]
-            raise ValueError(f"Invalid JSON format: {e}\nProblematic snippet: {snippet}")
-
+            result, _ = json.JSONDecoder().raw_decode(text[start:])
+        except json.JSONDecodeError as exc:
+            raise ValueError("The story engine returned invalid JSON; no progress was changed") from exc
+    # Some providers return a JSON-encoded JSON string or a singleton envelope.
+    for _ in range(2):
+        if isinstance(result, str):
+            try:
+                result = json.loads(result)
+            except json.JSONDecodeError as exc:
+                raise ValueError("The story engine returned an invalid JSON envelope") from exc
+        elif isinstance(result, list) and len(result) == 1 and isinstance(result[0], dict):
+            result = result[0]
+        else:
+            break
+    if not isinstance(result, dict):
+        raise ValueError("The story engine must return one scene object")
+    return result

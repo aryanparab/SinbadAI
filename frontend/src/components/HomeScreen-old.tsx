@@ -16,7 +16,7 @@ export default function HomeScreen() {
   const [worldName, setWorldName] = useState("");
   const [lastNarration, setLastNarration] = useState("");
   const { setGameData } = useGameContext();
-  const [loaded,setLoaded] = useState<any>(null);
+  const [loaded,setLoaded] = useState<GameMemory | null>(null);
 
   useEffect(() => {
     const checkMemory = async () => {

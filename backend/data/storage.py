@@ -72,7 +72,7 @@ def _get_sqlite_db():
         data_dir = "data"
         os.makedirs(data_dir, exist_ok=True)
         
-        db_file = os.path.join(data_dir, "agent_memory.db")
+        db_file = os.getenv("AGENT_DB_PATH", os.path.join(data_dir, "agent_context.sqlite3"))
         db = SqliteMemoryDb(
             table_name="game_memory", 
             db_file=db_file

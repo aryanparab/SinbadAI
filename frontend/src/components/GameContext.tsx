@@ -4,7 +4,8 @@ import { createContext, useContext, useState } from 'react';
 
 type GameData = {
   worldName?: string;
-  loaded?: any; // use proper type if available
+  totalTurns?: number;
+  loaded?: GameMemory | null; // use proper type if available
 };
 
 type GameContextType = {

@@ -1,0 +1,12 @@
+.env
+.env.*
+.venv
+venv
+__pycache__
+**/__pycache__
+*.pyc
+data
+*.db
+*.sqlite3
+*.log
+chroma_storage
